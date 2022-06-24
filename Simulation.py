@@ -74,6 +74,10 @@ def visualizeLOBResults(results):
     plt.plot([x for (_, x, _) in results.exchange.allPrices]) #Buy
     plt.figure()
     plt.plot([x for (_, _, x) in results.exchange.allPrices]) # Sell
+    
+    # Bid-Ask spread 
+    plt.figure()
+    plt.plot(results.spread)
 
     mo = orders[orders.Kind == "M"]
     moBuy = mo[mo.AmountWanted < 0]
@@ -107,6 +111,11 @@ def visualizeAMMResults(results):
     lo = orders[orders.Time>0]
     plt.figure()
     plt.hist(lo.GuessedTime-lo.PassedTime, bins = np.arange(-5000, 5000, 10))
+        
+    # Bid-Ask spread 
+    plt.figure()
+    plt.plot([x if x < 10 else None for x in results.spread])
+    # TODO: Look at big values
     
 def simulation(NAMM = 1, NLOB = 1, shocks=0, days=3, seed=100): 
     outputs = []
@@ -130,7 +139,7 @@ def simulation(NAMM = 1, NLOB = 1, shocks=0, days=3, seed=100):
         visualizeLOBResults(output)
         outputs.append(output)
 
-    return output
+    return outputs
 
-results = simulation(NAMM=1, NLOB=1, shocks=2, days=25, seed=100)
+results = simulation(NAMM=1, NLOB=1, shocks=1, days=15, seed=100)
 

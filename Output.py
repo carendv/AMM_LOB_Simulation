@@ -24,3 +24,4 @@ class Output(object):
         self.points = []
         self.prices = []
         self.orders = []
+        self.spread = []
