@@ -224,32 +224,32 @@ def bestRange(amm, buy, belP, spot):
 # Assets < 0: Buy from market
 # Assets > 0: Sell to market
 def bestLimit(assets, belP, spot, bestAsk, bestBid):
-    # Believed price is higher than market, we want to buy
-    # Buy-limit undercut
-    if belP > spot and assets < 0:
-        return min(bestAsk-1, bestBid+1)
-    # Believed price is higher than market, we want to sell
-    # Sell limit at correct price
-    elif belP > spot and assets > 0:
-        return belP
-    # Believed price is lower than market, we want to sell
-    # Sell limit undercut
-    elif belP < spot and assets > 0:
-        return max(bestBid+1, bestAsk-1)
-    # Believed price is lower than market, we want to buy
-    # Buy limit at correct price
-    elif belP < spot and assets < 0:
-        return belP
-    # We believe price is correct, we want to buy
-    # Buy limit at best bid
-    elif assets < 0:
-        return bestBid
-    # We believe price is correct, we want to sell
-    # Sell limit at best ask
-    elif assets > 0:
-        return bestAsk
-    
-    return -1
+    # Informed trader
+    if belP != spot:
+        # Informed buyer
+        if assets < 0:
+            # Undercut if we believe the true price to be higher.
+            # We still get a good deal since it is cheap.
+            if belP > bestBid:
+                return min(bestBid+1, bestAsk-1)
+            # If we believe the price to be lower, we don't want to pay extra.
+            else:
+                return belP
+        # informed seller
+        else:
+            # Undercut if we believe the true price to be lower.
+            # We still get a good deal since it is sold more expensive.
+            if belP < bestAsk:
+                return max(bestAsk-1, bestBid+1)
+            # If we believe the price to be higher, we don't want to get less.
+            else:
+                return belP
+    # Uninformed trader
+    else:
+        if assets < 0:
+            return bestBid
+        else:
+            return bestAsk
 
 def probOrder(belP, marketPrice):
     return 1/(1+np.e**(-(marketPrice-belP)/4))
