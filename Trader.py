@@ -14,7 +14,7 @@ import numpy as np
 random.seed(10)
     
 def trade(env, name, exchange, s, o, r):
-    print(name)
+    #print(name)
     guessedTime = -1
     now = env.now
     spot = exchange.spot()
@@ -192,7 +192,7 @@ def bestRange(amm, buy, belP, spot):
     # Believed price is higher than market, we want to sell
     # Sell limit at correct price
     elif belP > spot and not buy:
-        lower = math.ceil(spot)
+        lower = math.ceil(spot) #TODO: Step in from point of no liquidity
         upper = amm.s.maxPriceRange
     # Believed price is lower than market, we want to sell
     # Sell limit undercut
@@ -203,13 +203,13 @@ def bestRange(amm, buy, belP, spot):
     # Buy limit at correct price
     elif belP < spot and buy:
         lower = amm.s.minPriceRange
-        upper = math.floor(spot)
+        upper = math.floor(spot) #TODO: Step in from point of no liquidity
     elif not buy:
-        lower = np.floor(np.percentile(amm.prices, 5)**2)#np.floor(spot)
+        lower = np.floor(np.percentile(amm.prices, 5)**2)
         upper = np.ceil(np.percentile(amm.prices, 95)**2)
     else:
         lower = np.floor(np.percentile(amm.prices, 5)**2)
-        upper = np.ceil(np.percentile(amm.prices, 95)**2)#np.ceil(spot)
+        upper = np.ceil(np.percentile(amm.prices, 95)**2)
     
     if lower == upper:
         lower = max(lower - 1, amm.s.minPriceRange)

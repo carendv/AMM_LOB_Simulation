@@ -5,17 +5,7 @@ Created on Mon Mar 21 16:12:25 2022
 
 @author: caren
 """
-# Output statistics (to be collected)
-#exchanges = []
-
-
-# 'Name', 'Start', 'Time', 'Exchange', 'Buy?', 'Asset', 'Money', 'waitCosts', 'Bid', 'Ask'
-#orders = []
-#liquidityOrders = []
-
-#numTrades = [0]
-#undercut = []
-#inqueue = []
+from statsmodels.tsa.stattools import adfuller
 
 class Output(object):
     def __init__(self):
@@ -25,3 +15,11 @@ class Output(object):
         self.prices = []
         self.orders = []
         self.spread = []
+    
+    def randomWalk(self):
+        results = adfuller(self.prices)
+        print(f"ADF Statistic: {results[0]}")
+        print(f"p-value: {results[1]}")
+        print("Critical Values:")
+        for key, value in results[4].items():
+            print("\t%s: %.3f" % (key, value))
