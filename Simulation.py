@@ -37,7 +37,7 @@ def setup(env, s, o, kindExchange, i):
         yield env.timeout(random.randint(s.liqMin,s.liqMax))
         # Call process for a new client
         if (shockIn-1)*s.shockTime + s.shockWait < env.now:
-            s.trueP += 10 
+            s.trueP += s.shockStep
             shockIn += 1
             incr = env.now + s.shockIncrTime
             start = env.now
@@ -57,6 +57,7 @@ def setup(env, s, o, kindExchange, i):
             o.points.append(o.numTrades)
             decr = 0
 
+        o.times.append(env.now)
         env.process(trade(env, o.numTrades, o.exchange, s, o, random))
         o.numTrades += 1
 
@@ -121,7 +122,7 @@ def simulation(NAMM = 1, NLOB = 1, shocks=0, days=3, seed=100):
     outputs = []
     for i in range(NAMM):
         settings = Settings(NAMM=1, NLOB=0, shocks=shocks, days=days, seed=seed)
-        output = Output()
+        output = Output(settings)
         random.seed(settings.seed)
         env = simpy.Environment()
         env.process(setup(env, settings, output, "AMM", i))
@@ -131,7 +132,7 @@ def simulation(NAMM = 1, NLOB = 1, shocks=0, days=3, seed=100):
         
     for i in range(NLOB):
         settings = Settings(NAMM=0, NLOB=1, shocks=shocks, days=days, seed=seed)
-        output = Output()
+        output = Output(settings)
         random.seed(settings.seed)
         env = simpy.Environment()
         env.process(setup(env, settings, output, "LOB", i))
@@ -141,7 +142,6 @@ def simulation(NAMM = 1, NLOB = 1, shocks=0, days=3, seed=100):
 
     return outputs
 
-results = simulation(NAMM=1, NLOB=1, shocks=0, days=5, seed=100)
-results[0].randomWalk()
-results[1].randomWalk()
+results = simulation(NAMM=1, NLOB=1, shocks=1, days=2, seed=100)
+results[0].timeDiscovery()
 

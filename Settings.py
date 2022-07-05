@@ -22,7 +22,8 @@ class Settings(object):
         self.r.seed(100)
                 
         # Variables with respect to transaction
-        self.trueP = 1000
+        self.orP = 1000
+        self.trueP = self.orP
         self.fee = 0.001
         self.transSize = [1000 , 5000]
         
@@ -50,6 +51,7 @@ class Settings(object):
         self.maxInfP = 0.75
         
         # Variables w.r.t. shocks, when they happen and how long
+        self.shockStep = 10
         self.shockTime = self.totTime/self.shocks if not self.shocks==0 else math.inf
         self.shockWait = self.shockTime*0.3
         self.shockIncrTime = self.shockTime*0.1
