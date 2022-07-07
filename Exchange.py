@@ -6,6 +6,7 @@ Created on Mon Mar 21 16:07:07 2022
 @author: caren
 """
 import simpy
+from Output import ExchangeStatistics
 
 # Abstract version of the Exchange
 class Exchange(object):
@@ -17,10 +18,18 @@ class Exchange(object):
         self.marketSellTransactions = Queue(env, self.s)
         self.marketBuyTransactions = Queue(env, self.s)
         self.allPrices = []
+        self.statistics = ExchangeStatistics()
     
     def getBuySellQuantity(self, time):
         return (self.marketBuyTransactions.getLiqSec()*time, self.marketSellTransactions.getLiqSec()*time)
     
+    def addStatistics(self, sellVol = 0, buyVol = 0):
+        self.statistics.add(price = self.spot(), \
+                            time = self.env.now, \
+                            sellVol = sellVol, \
+                            buyVol = buyVol, \
+                            spread = self.bestAskPrice() - self.bestBidPrice(), \
+                            informedProb = self.s.infP)
 
 class Queue():
     def __init__(self, env, s):

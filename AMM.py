@@ -168,6 +168,10 @@ class AMM(Exchange):
             (inL, inU, pL, pU) = self.__getTickWindow__()
         
         self.tradePrices.append(M/(orX-X)) if not orX-X == 0 else None
+        if orX > 0:
+            self.addStatistics(sellVol = orX-X, buyVol = 0)
+        else: 
+            self.addStatistics(sellVol = 0, buyVol = X-orX)
         
         return (X, M)  
         
@@ -256,6 +260,11 @@ class AMM(Exchange):
             (inL, inU, pL, pU) = self.__getTickWindow__()
         
         self.tradePrices.append((orM-M)/(X)) if not orM-M == 0 else None
+        
+        if orM > 0:
+            self.addStatistics(sellVol = 0, buyVol = X)
+        else: 
+            self.addStatistics(sellVol = X, buyVol = 0)
         
         return (X, M)  
     

@@ -32,6 +32,7 @@ def setup(env, s, o, kindExchange, i):
     incr = -math.inf
     decr = -math.inf
     start = -1
+    trades = 0
         
     while True:
         yield env.timeout(random.randint(s.liqMin,s.liqMax))
@@ -41,12 +42,10 @@ def setup(env, s, o, kindExchange, i):
             shockIn += 1
             incr = env.now + s.shockIncrTime
             start = env.now
-            o.points.append(o.numTrades)
         elif incr > env.now:
             s.infP = (s.maxInfP-s.minInfP)/(incr-start)*(env.now-start)+s.minInfP
         elif incr + 10 > env.now:
             s.infP = s.maxInfP
-            o.points.append(o.numTrades)
             decr = env.now + s.shockDecrTime
             start = env.now
             incr = 0
@@ -54,69 +53,48 @@ def setup(env, s, o, kindExchange, i):
             s.infP = s.maxInfP - (s.maxInfP-s.minInfP)/(decr-start)*(env.now-start)
         elif decr + 10 > env.now:
             s.infP = s.minInfP
-            o.points.append(o.numTrades)
             decr = 0
 
-        o.times.append(env.now)
-        env.process(trade(env, o.numTrades, o.exchange, s, o, random))
-        o.numTrades += 1
+        env.process(trade(env, trades, o.exchange, s, o, random))
+        trades += 1
 
-def visualizeLOBResults(results):
-    orders = pd.DataFrame(results.orders, columns=['Name', 'Spot', 'belP', 'AmountWanted', 'Time', 'GuessedTime', 'PassedTime', 'Assets', 'Money', 'CompletionPer', 'Kind'])
+def visualizeResults(results):
+    statistics = results.exchange.statistics
+    statistics.buyVol.remove(0)
+    statistics.sellVol.remove(0)
     
+    ##########################################################
+    ### Find plots where number of informed trades changes ###
+    ##########################################################
+    points = []
+    state = "c"
+    infP = statistics.informedProb
+    for (i, x) in enumerate(infP):
+        if i == 0:
+            continue
+        elif infP[i]-infP[i-1] > 0 and state == "c":
+            points.append(i)
+            state = "i"
+        elif infP[i]-infP[i-1] < 0 and state == "i":
+            points.append(i)
+            state = "d"
+        elif infP[i] == results.exchange.s.minInfP and state == "d":
+            points.append(i-1)
+            state = "c"  
+    
+    ####################
+    ### Create plots ###
+    ####################
+    plotWithInformed(statistics.times, statistics.prices, points)
+    plotWithInformed(statistics.times, statistics.spread, points)
+
+def plotWithInformed(times, data, points):
     plt.figure()
-    plt.plot(results.prices)    
-    for i in range(round(len(results.points)/3)):
-        plt.axvspan(results.points[i*3], results.points[i*3+1], alpha = 0.5, color='g')
-        plt.axvspan(results.points[i*3+1], results.points[i*3+2], alpha = 0.5, color='r')
+    plt.plot(times, data)    
+    for i in range(round(len(points)/3)):
+        plt.axvspan(times[points[i*3]], times[points[i*3+1]], alpha = 0.5, color='g')
+        plt.axvspan(times[points[i*3+1]], times[points[i*3+2]], alpha = 0.5, color='r')
     plt.show()
-    
-    plt.figure()
-    plt.plot([x for (_, x, _) in results.exchange.allPrices]) #Buy
-    plt.figure()
-    plt.plot([x for (_, _, x) in results.exchange.allPrices]) # Sell
-    
-    # Bid-Ask spread 
-    plt.figure()
-    plt.plot(results.spread)
-
-    mo = orders[orders.Kind == "M"]
-    moBuy = mo[mo.AmountWanted < 0]
-    moSell = mo[mo.AmountWanted > 0]
-    lo = orders[orders.Kind != "M"]
-    loBF = lo[(lo.AmountWanted < 0) & (lo.Kind)]
-    loBU = lo[(lo.AmountWanted < 0) & (lo.Kind == False)]
-    loSF = lo[(lo.AmountWanted > 0) & (lo.Kind)]
-    loSU = lo[(lo.AmountWanted > 0) & (lo.Kind == False)]
-    
-    print("Market buy orders:", len(moBuy))
-    print("Market sell orders:", len(moSell))
-    print("Filled limit buy orders:", len(loBF))
-    print("Unfilled limit buy orders:", len(loBU))
-    print("Filled limit sell orders:", len(loSF))
-    print("Unfilled limit sell orders:", len(loSU))
-    
-    lo = orders[orders.Time>0]
-    plt.figure()
-    plt.hist(lo.GuessedTime-lo.PassedTime, bins = np.arange(-5000, 5000, 10))
-
-def visualizeAMMResults(results):
-    orders = pd.DataFrame(results.orders, columns=['Name', 'Spot', 'belP', 'AmountWanted', 'Time', 'GuessedTime', 'PassedTime', 'Assets', 'Money', 'CompletionPer', 'Kind'])
-    plt.figure()
-    
-    plt.plot(results.prices)    
-    for i in range(round(len(results.points)/3)):
-        plt.axvspan(results.points[i*3], results.points[i*3+1], alpha = 0.5, color='g')
-        plt.axvspan(results.points[i*3+1], results.points[i*3+2], alpha = 0.5, color='r')
-    
-    lo = orders[orders.Time>0]
-    plt.figure()
-    plt.hist(lo.GuessedTime-lo.PassedTime, bins = np.arange(-5000, 5000, 10))
-        
-    # Bid-Ask spread 
-    plt.figure()
-    plt.plot([x if x < 10 else None for x in results.spread])
-    # TODO: Look at big values
     
 def simulation(NAMM = 1, NLOB = 1, shocks=0, days=3, seed=100): 
     outputs = []
@@ -127,7 +105,7 @@ def simulation(NAMM = 1, NLOB = 1, shocks=0, days=3, seed=100):
         env = simpy.Environment()
         env.process(setup(env, settings, output, "AMM", i))
         env.run(until=settings.totTime)
-        visualizeAMMResults(output)
+        visualizeResults(output)
         outputs.append(output)
         
     for i in range(NLOB):
@@ -137,11 +115,10 @@ def simulation(NAMM = 1, NLOB = 1, shocks=0, days=3, seed=100):
         env = simpy.Environment()
         env.process(setup(env, settings, output, "LOB", i))
         env.run(until=settings.totTime)
-        visualizeLOBResults(output)
+        visualizeResults(output)
         outputs.append(output)
 
     return outputs
 
 results = simulation(NAMM=1, NLOB=1, shocks=1, days=2, seed=100)
-results[0].timeDiscovery()
 

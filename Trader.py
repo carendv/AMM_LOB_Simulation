@@ -20,8 +20,6 @@ def trade(env, name, exchange, s, o, r):
     spot = exchange.spot()
     ask = exchange.bestAskPrice()
     bid = exchange.bestBidPrice()
-    o.prices.append(spot)
-    o.spread.append(ask-bid)
     belP = round(s.trueP+(min(max(np.random.normal(0, 1), -3), 3))) if r.random() < s.infP else spot
     kind = None
     
