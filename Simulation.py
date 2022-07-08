@@ -101,6 +101,10 @@ def visualizeResults(results):
         pvalues.append(round(rw[1], 4))
     
     print(f"Found p-values of stationary parts: {pvalues}")
+    if all(i > 0.05 for i in pvalues):
+        print("The market has perfect information.")
+    else:
+        print("The market prices are influenced by the past.")
     
 def plotWithInformed(data, points):
     names = ["Price", "Unit spread", "Cumulative sell volume", "cumulative buy volume"]
