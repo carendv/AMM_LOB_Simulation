@@ -292,7 +292,7 @@ class AMM(Exchange):
                 L+= self.dL[index] 
         X = X*(1-self.F)
         while X > 0 and L>0:
-            (index, pL) = self.__getTickWindowDown__(index) # Easy fix for the fact that index saved is lower index
+            (indexL, pL) = self.__getTickWindowDown__(index) # Easy fix for the fact that index saved is lower index
             pN = 1/(1/p + X/L)
             if pN > pL:
                 M -= L*(pN-p)
@@ -308,6 +308,7 @@ class AMM(Exchange):
                 X -= (1/pL - 1/p)*L
                 p = pL
                 L -= self.dL[index]
+                index = indexL
         
         if X < 0:
             return math.inf
@@ -403,9 +404,12 @@ class AMM(Exchange):
         return (inU, pu)
     
     # Returns pair: index next lowerbound, sqrt price lower bound
-    def __getTickWindowDown__(self, inL = None):
-        if not inL:
-            inL = self.index
+    def __getTickWindowDown__(self, index = None):
+        if not index:
+            index = self.index
+        
+        inL = index
+        
         if inL == 0:
             return (0, 0)
         
@@ -416,7 +420,7 @@ class AMM(Exchange):
         if self.index == len(self.nR)-1:
             return (inL, math.inf)
         else:
-            return (inL, math.sqrt(self.index+self.s.minPriceRange))
+            return (inL, math.sqrt(index+self.s.minPriceRange))
     
     def __getPricedX__(self, dX): return 1/(1/self.sP + dX/self.L)
     def __getPricedM__(self, dM): return dM/self.L + self.sP
