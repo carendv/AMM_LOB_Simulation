@@ -9,9 +9,9 @@ Created on Mon Mar 21 16:07:57 2022
 import simpy
 import random
 import math
-import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
+from statsmodels.tsa.stattools import adfuller
 
 from Settings import Settings
 from Output import Output
@@ -86,11 +86,22 @@ def visualizeResults(results):
     ### Create plots ###
     ####################
     plotWithInformed(statistics, points)
-    # plotWithInformed(statistics.times, statistics.prices, points, "Price")
-    # plotWithInformed(statistics.times, statistics.spread, points, "Unit spread")
-    # plotWithInformed(statistics.times, statistics.sellVol, points, "Cumulative sell volume")
-    # plotWithInformed(statistics.times, statistics.buyVol, points, "Cumulative buy volume")
-
+    
+    
+    ####################
+    ### Random walks ###
+    ####################  
+    # There should be a random walk when the informed trades are on the lower threshold
+    points.insert(0, 0)
+    points.append(len(statistics.prices)-1)
+    pvalues = []
+    for i in range(int(np.ceil(len(points)/3))):
+        statPart = statistics.prices[points[i*3]:points[i*3+1]]
+        rw = adfuller(statPart)
+        pvalues.append(round(rw[1], 4))
+    
+    print(f"Found p-values of stationary parts: {pvalues}")
+    
 def plotWithInformed(data, points):
     names = ["Price", "Unit spread", "Cumulative sell volume", "cumulative buy volume"]
     dataS = [data.prices, data.spread, data.sellVol, data.buyVol]
