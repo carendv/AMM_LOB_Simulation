@@ -63,6 +63,10 @@ def visualizeResults(results):
     statistics.buyVol.remove(0)
     statistics.sellVol.remove(0)
     
+    print("#############")
+    print(f"### {results.exchange.name} ###")
+    print("#############")
+    
     ##########################################################
     ### Find plots where number of informed trades changes ###
     ##########################################################
@@ -85,8 +89,22 @@ def visualizeResults(results):
     ####################
     ### Create plots ###
     ####################
-    plotWithInformed(statistics, points)
+    plotWithInformed(statistics, points, results.exchange.name)
     
+    #######################
+    ### Price discovery ###
+    #######################
+    for i in range(round(len(points)/3)):
+        a = results.exchange.s.orP + i*results.exchange.s.shockStep
+        b = results.exchange.s.orP + (i+1)*results.exchange.s.shockStep
+        index = next(j for j,v in enumerate(statistics.prices) if v >= b and j >= points[i*3])
+        buyVol = round(statistics.buyVol[index]-statistics.buyVol[points[i*3]])
+        sellVol = round(statistics.sellVol[index]-statistics.sellVol[points[i*3]])
+        time = statistics.times[index]-statistics.times[points[i*3]]
+        trades = index-points[i*3]
+        print(f"Shock {i+1} took the price from {a} to {b}.")
+        print(f"{time} seconds went by and there where {trades} trades.")
+        print(f"The buy volume was {buyVol}, while the sell volume was {sellVol}.")
     
     ####################
     ### Random walks ###
@@ -100,20 +118,23 @@ def visualizeResults(results):
         rw = adfuller(statPart)
         pvalues.append(round(rw[1], 4))
     
+    print()
     print(f"Found p-values of stationary parts: {pvalues}")
     if all(i > 0.05 for i in pvalues):
         print("The market has perfect information.")
     else:
         print("The market prices are influenced by the past.")
+    print()
     
-def plotWithInformed(data, points):
+def plotWithInformed(data, points, name):
     names = ["Price", "Unit spread", "Cumulative sell volume", "cumulative buy volume"]
     dataS = [data.prices, data.spread, data.sellVol, data.buyVol]
     num = len(names)
     rows = 2
     columns = num/rows
     
-    plt.figure()
+    fig = plt.figure()
+    fig.suptitle(name)
     for i in range(num):
         plt.subplot(rows, int(np.ceil(columns)), i+1)
         plt.plot(data.times, dataS[i])
@@ -149,5 +170,5 @@ def simulation(NAMM = 1, NLOB = 1, shocks=0, days=3, seed=100):
 
     return outputs
 
-results = simulation(NAMM=1, NLOB=1, shocks=1, days=2, seed=100)
+results = simulation(NAMM=1, NLOB=1, shocks=2, days=10, seed=100)
 
