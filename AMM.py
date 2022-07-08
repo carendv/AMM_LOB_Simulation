@@ -378,16 +378,12 @@ class AMM(Exchange):
         
         return math.sqrt(self.s.maxPriceRange)
     
-    # TODO: check function
     def getExpLiq(self, assets, money, lower, upper):
-        #f = self.F
         index = self.index
         sP = self.sP
-        #self.F = 0
         (_, _, C) = self.add(assets, money, lower, upper, record = False)
         L = C.L
         C.retrieve()
-        #self.F = f
         self.sP = sP
         self.__setIndex__(index)
         return L
@@ -677,52 +673,3 @@ class SellRangeOrder(Contract):
         (asset, money2) = self.amm.trade(asset+amount)
         money += money2
         return (asset, money, filled)
-        
-        
-# # Buy comparison. Price goes to 1020. Stepping into the pool is better option
-# amm = AMM(simpy.Environment(), 1, Settings())
-# (X, M, contract) = amm.add(0, 1020, 999, 1020)
-# for i in range(400):
-#     amm.trade(0.5)
-#     amm.trade(-0.75)
-# #amm.sP = math.sqrt(1021)
-# print(amm.sP*amm.sP)
-# (X, M) = amm.retrieve(contract)
-# print(1020/(amm.__tradeM__(M)+X))
-
-# amm = AMM(simpy.Environment(), 1, Settings())
-# X = amm.__tradeM__(1020)
-# print(1020/X)
-
-# # Sell comparison. Price goes to 1020. 
-# amm = AMM(simpy.Environment(), 1, Settings())
-# (X, M, contract) = amm.add(1, 0, 1018, 1019)
-# for i in range(400):
-#     amm.trade(0.5)
-#     amm.trade(-0.75)
-# plt.scatter(range(len(amm.tradePrices)), amm.tradePrices)
-# plt.show()
-# listEven = amm.tradePrices[::2]
-# listOdd = amm.tradePrices[1::2]
-# plt.scatter(range(len(listOdd)), [a-b for a,b in zip(listOdd, listEven)])
-# plt.show()
-# print(amm.sP*amm.sP)
-# (X, M) = amm.retrieve(contract)
-# (X, M2) = amm.trade(X)
-# print((M+M2)/1)
-
-# amm = AMM(simpy.Environment(), 1, Settings())
-# amm.sP = math.sqrt(1020)
-# print(amm.trade(1)[1]/1)
-
-# # Sell comparison. Price goes to 1020. 
-# numTrades = 10000
-# amm = AMM(simpy.Environment(), 1, Settings())
-# for i in range(numTrades):
-#     tr = random.randint(-3, 3)
-#     while tr == 0:
-#         tr = random.randint(-3, 3)
-#     amm.trade(tr)
-# plt.scatter(range(numTrades), [i*i for i in amm.allPrices])
-# plt.show()
-

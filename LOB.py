@@ -245,9 +245,3 @@ class SellLimitOrder(LimitOrder):
         (assets, money2) = self.lob.trade(self.assets)
         self.setAssets(0)
         return (assets, money+money2, filled)
-        
-
-#lob = LOB(simpy.Environment(), 1, Settings())
-#(assets, money, lo) = lob.add(1, 1001)
-#(assets, money) = lob.tradeM(2004)
-#lo.cancel()
