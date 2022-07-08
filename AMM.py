@@ -120,8 +120,9 @@ class AMM(Exchange):
                     dM = self.__getdMpN__(pN)/(1-self.F)
                     M -= dM
                     self.sP = pN
-                    self.feeGrowthM[inU] += abs(dM*self.F/self.L)
-                    self.marketBuyTransactions.push(X)
+                    if record:
+                        self.feeGrowthM[inU] += abs(dM*self.F/self.L)
+                        self.marketBuyTransactions.push(X)
                     X = 0
                 else: 
                     # Update all returns of user for partial swap
@@ -132,7 +133,7 @@ class AMM(Exchange):
                     
                     # Update liquidity
                     self.sP = pU
-                    if dM > 0:
+                    if dM > 0 and record:
                         self.feeGrowthM[inU] += abs(dM*self.F/self.L)
                         self.marketBuyTransactions.push(dX)
                     self.__setIndex__(inU)
@@ -153,15 +154,16 @@ class AMM(Exchange):
                 if pN >= pL:
                     M -= self.__getdMpN__(pN)
                     self.sP = pN
-                    self.feeGrowthX[inU] += abs(X*self.F/self.L)
-                    self.marketSellTransactions.push(X)
+                    if record:
+                        self.feeGrowthX[inU] += abs(X*self.F/self.L)
+                        self.marketSellTransactions.push(X)
                     X=0
                 else:
                     M -= self.__getdMpN__(pL)
                     dX = self.__getdXpN__(pL)/(1-self.F)
                     X -= dX
                     self.sP = pL
-                    if inU < len(self.nR) and not dX == 0:
+                    if inU < len(self.nR) and not dX == 0 and record:
                         self.feeGrowthX[inU] += abs(dX*self.F/self.L)
                         self.marketSellTransactions.push(dX)
                     self.__setIndex__(inL)
@@ -213,8 +215,9 @@ class AMM(Exchange):
                     dX = self.__getdXpN__(pN)/(1-self.F)
                     X -= dX
                     self.sP = pN
-                    self.feeGrowthX[inU] += abs(dX*self.F/self.L)
-                    self.marketSellTransactions.push(dX)
+                    if record:
+                        self.feeGrowthX[inU] += abs(dX*self.F/self.L)
+                        self.marketSellTransactions.push(dX)
                 else: 
                     # Update all returns of user for partial swap
                     dX = self.__getdXpN__(pL)/(1-self.F)
@@ -223,7 +226,7 @@ class AMM(Exchange):
                     
                     # Update liquidity
                     self.sP = pL
-                    if dX > 0:
+                    if dX > 0 and record:
                         self.feeGrowthX[inU] += abs(dX*self.F/self.L)
                         self.marketSellTransactions.push(dX)
                     self.__setIndex__(inL)
@@ -245,8 +248,9 @@ class AMM(Exchange):
                     dX = self.__getdXpN__(pN)
                     X -= dX
                     self.sP = pN
-                    self.feeGrowthM[inU] += abs(M*self.F/self.L)
-                    self.marketBuyTransactions.push(-dX)
+                    if record:
+                        self.feeGrowthM[inU] += abs(M*self.F/self.L)
+                        self.marketBuyTransactions.push(-dX)
                     M=0
                 else:
                     dX = self.__getdXpN__(pU)
@@ -254,7 +258,7 @@ class AMM(Exchange):
                     dM = self.__getdMpN__(pU)/(1-self.F)
                     M -= dM
                     self.sP = pU
-                    if inU < len(self.nR) and not dM == 0:
+                    if inU < len(self.nR) and not dM == 0 and record:
                         self.feeGrowthM[inU] += abs(dM*self.F/self.L)
                         self.marketBuyTransactions.push(dX)
                     self.__setIndex__(inU)
@@ -376,14 +380,14 @@ class AMM(Exchange):
     
     # TODO: check function
     def getExpLiq(self, assets, money, lower, upper):
-        f = self.F
+        #f = self.F
         index = self.index
         sP = self.sP
-        self.F = 0
+        #self.F = 0
         (_, _, C) = self.add(assets, money, lower, upper, record = False)
         L = C.L
         C.retrieve()
-        self.F = f
+        #self.F = f
         self.sP = sP
         self.__setIndex__(index)
         return L
