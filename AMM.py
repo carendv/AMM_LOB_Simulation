@@ -376,14 +376,14 @@ class AMM(Exchange):
     
     # TODO: check function
     def getExpLiq(self, assets, money, lower, upper):
-        #f = self.F
+        f = self.F
         index = self.index
         sP = self.sP
-        #self.F = 0
-        (_, _, C) = self.add(assets, money, lower, upper, False)
+        self.F = 0
+        (_, _, C) = self.add(assets, money, lower, upper, record = False)
         L = C.L
         C.retrieve()
-        #self.F = f
+        self.F = f
         self.sP = sP
         self.__setIndex__(index)
         return L
@@ -457,10 +457,10 @@ class AMM(Exchange):
                 return (X, M, Contract(pa, pb, 0, fX, fM, self, kind))
             if self.sP == pp and X == 0:
                 self.__setIndex__(inU)
-                return self.add(X, M, a, b, kind)
+                return self.add(X, M, a, b, kind, record)
             if self.sP == pm and M == 0:
                 self.__setIndex__(inL)
-                return self.add(X, M, a, b, kind)
+                return self.add(X, M, a, b, kind, record)
                 
         R = M/X if X else math.inf
         Rp = self.__Rp__(X, M, pp)
@@ -499,7 +499,7 @@ class AMM(Exchange):
             M -= dM + dM2 
             self.sP = pp
             self.__setIndex__(inU)
-            return self.add(X, M, a, b, kind)
+            return self.add(X, M, a, b, kind, record)
         # Case in which we have too much X and the border is crossed
         elif R < rc and Rm < rm:
             dX = self.__getdXpN__(pm)/(1-self.F)
@@ -508,7 +508,7 @@ class AMM(Exchange):
             X = X - dX + dX2
             self.sP = pm
             self.__setIndex__(inL)
-            return self.add(X, M, a, b, kind)
+            return self.add(X, M, a, b, kind, record)
         
         # Compute the liquidity and left over assets/money
         Lx = round(X*self.sP*pb/(pb-self.sP))
