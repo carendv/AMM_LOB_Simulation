@@ -91,7 +91,7 @@ class AMM(Exchange):
     # A positive amount of X means that we sell it to the AMM
     # A negative amount of M returned means that we pay it to the AMM
     # A positive amount of M returned means that we get it from the AMM
-    def trade(self, X):
+    def trade(self, X, record=True):
         orX = X
         self.prices.append(self.sP)
         self.allPrices.append(self.sP)
@@ -167,11 +167,12 @@ class AMM(Exchange):
                     self.__setIndex__(inL)
             (inL, inU, pL, pU) = self.__getTickWindow__()
         
-        self.tradePrices.append(M/(orX-X)) if not orX-X == 0 else None
-        if orX > 0:
-            self.addStatistics(sellVol = orX-X, buyVol = 0)
-        else: 
-            self.addStatistics(sellVol = 0, buyVol = X-orX)
+        if record:
+            self.tradePrices.append(M/(orX-X)) if not orX-X == 0 else None
+            if orX > 0:
+                self.addStatistics(sellVol = orX-X, buyVol = 0)
+            else: 
+                self.addStatistics(sellVol = 0, buyVol = X-orX)
         
         return (X, M)  
         
@@ -180,7 +181,7 @@ class AMM(Exchange):
     # A positive amount of M means that we buy as much X as we can
     # A negative amount of X returned means that we pay it to the AMM
     # A positive amount of X returned means that we get it from the AMM
-    def tradeM(self, M):
+    def tradeM(self, M, record=True):
         orM = M
         self.prices.append(self.sP)
         self.allPrices.append(self.sP)
@@ -259,12 +260,12 @@ class AMM(Exchange):
                     self.__setIndex__(inU)
             (inL, inU, pL, pU) = self.__getTickWindow__()
         
-        self.tradePrices.append((orM-M)/(X)) if not orM-M == 0 else None
-        
-        if orM > 0:
-            self.addStatistics(sellVol = 0, buyVol = X)
-        else: 
-            self.addStatistics(sellVol = X, buyVol = 0)
+        if record:
+            self.tradePrices.append((orM-M)/(X)) if not orM-M == 0 else None
+            if orM > 0:
+                self.addStatistics(sellVol = 0, buyVol = X)
+            else: 
+                self.addStatistics(sellVol = X, buyVol = 0)
         
         return (X, M)  
     
@@ -375,14 +376,14 @@ class AMM(Exchange):
     
     # TODO: check function
     def getExpLiq(self, assets, money, lower, upper):
-        f = self.F
+        #f = self.F
         index = self.index
         sP = self.sP
-        self.F = 0
-        (_, _, C) = self.add(assets, money, lower, upper)
+        #self.F = 0
+        (_, _, C) = self.add(assets, money, lower, upper, False)
         L = C.L
         C.retrieve()
-        self.F = f
+        #self.F = f
         self.sP = sP
         self.__setIndex__(index)
         return L
@@ -429,7 +430,7 @@ class AMM(Exchange):
     
     # In this simulation we assume that we can only add X or M, not both
     # Return X, M, L
-    def add(self, X, M, a, b, kind=None): 
+    def add(self, X, M, a, b, kind=None, record=True): 
         # Compute some prices we need
         pa = math.sqrt(a) # Get sqrt(pa)
         pb = math.sqrt(b) # Get sqrt(pb)
@@ -477,7 +478,7 @@ class AMM(Exchange):
             c = self.L*pa-lF*self.sP-M
             sp1 = (-b + math.sqrt(b*b-4*a*c))/(2*a)
             dM = lF*(sp1 - self.sP)/(1-self.F)
-            (dX, dM2) = self.tradeM(dM) # Already takes in fee
+            (dX, dM2) = self.tradeM(dM, record) # Already takes in fee
             X += dX
             M -= dM + dM2
         # Case in which we have too much X and the border isn't crossed
@@ -487,13 +488,13 @@ class AMM(Exchange):
             c = lF*pa - self.L*self.sP-M # Different than source (derived)
             sp1 = (-b + math.sqrt(b*b-4*a*c))/(2*a)
             dX = lF*(1/sp1 - 1/self.sP)
-            (dX2, dM) = self.trade(dX)
+            (dX2, dM) = self.trade(dX, record)
             M += dM
             X -= dX + dX2
         # Case in which we have too little X and the border is crossed
         elif R > rc and Rp >= rp:
             dM = self.__getdMpN__(pp)/(1-self.F)
-            (dX, dM2) = self.tradeM(dM)
+            (dX, dM2) = self.tradeM(dM, record)
             X += dX
             M -= dM + dM2 
             self.sP = pp
@@ -502,7 +503,7 @@ class AMM(Exchange):
         # Case in which we have too much X and the border is crossed
         elif R < rc and Rm < rm:
             dX = self.__getdXpN__(pm)/(1-self.F)
-            (dX2, dM) = self.trade(dX)
+            (dX2, dM) = self.trade(dX, record)
             M += dM
             X = X - dX + dX2
             self.sP = pm
