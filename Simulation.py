@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 from statsmodels.tsa.stattools import adfuller
+from collections import Counter
 
 from Settings import Settings
 from Output import Output
@@ -135,6 +136,20 @@ def visualizeResults(results):
     orders = pd.DataFrame(results.orders, columns=["Name", "Spot", "belP", "Amount", \
                                         "Start", "GuessedTime", "ActualTime", "Assets", \
                                         "Money", "CompletionPer", "Filled"])
+    
+                
+    #########################
+    ### Strategie choices ###
+    #########################
+    c = Counter((elem[0], elem[1]) for elem in results.strats)
+    for (kind, informed) in c:
+        if informed:
+            print(f"Informed traders doing {kind}: {c[(kind, informed)]}")
+        else:
+            print(f"Non informed traders doing {kind}: {c[(kind, informed)]}")
+    print()
+        
+    
     
 def plotWithInformed(data, points, name):
     names = ["Price", "Unit spread", "Cumulative sell volume", "cumulative buy volume"]
