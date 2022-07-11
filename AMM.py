@@ -144,7 +144,7 @@ class AMM(Exchange):
         
         # If the trade crosses it's lower price (only possible when selling),
         # split up the trade to go to the crossing
-        while X > 0 and (self.index >= 0 or self.L>0):
+        while X > 0 and (self.index > 0 or self.L>0):
             if self.sP > pL and self.L == 0:
                 break
             elif self.sP == pL and self.index == 0:
@@ -463,10 +463,10 @@ class AMM(Exchange):
         inL = index
         
         if inL == 0:
-            return (-1, math.sqrt(self.s.minPriceRange))
+            return (0, math.sqrt(self.s.minPriceRange))
         
         inL -=1
-        while inL >= 0 and self.nR[inL] == 0:
+        while inL > 0 and self.nR[inL] == 0:
             inL -= 1
         
         if index == len(self.nR)-1:
