@@ -35,119 +35,30 @@ def trade(env, name, exchange, s, o, r):
 
     randomDraw = random.random()
     if isinstance(exchange, LOB) and exchange.getLiquidity(900) < 10000:
-        kind = "L"
-        buy = True
+        (time, amount, p, kindOrder, changed, guessedTime) = forcedLiquidityOrderLOB(True, belP, exchange, s)
     elif isinstance(exchange, LOB) and exchange.getLiquidity(1200) < 10000:
-        kind = "L"
-        buy = False
+        (time, amount, p, kindOrder, changed, guessedTime) = forcedLiquidityOrderLOB(False, belP, exchange, s)
     elif isinstance(exchange, AMM) and exchange.getLiquidityDown() < 10000:
-         kind = "L"
-         buy = True
+         (time, amount, lower, upper, kindOrder, changed, guessedTime) = forcedLiquidityOrderAMM(True, belP, exchange, s)
     elif isinstance(exchange, AMM) and exchange.getLiquidityUp() < 10000:
-         kind = "L"
-         buy = False
+         (time, amount, lower, upper, kindOrder, changed, guessedTime) = forcedLiquidityOrderAMM(False, belP, exchange, s)
     elif isinstance(exchange, AMM) and exchange.L < 100000:
-        kind = "L"
-    elif buy and probOrder(belP, ask) > randomDraw:
-        kind = "L"
-    elif not buy and probOrder(bid, belP) > randomDraw:
-        kind = "L"
-    elif buy and probOrder(belP, ask) < randomDraw:
-        kind = "M"
-    elif not buy and probOrder(bid, belP) < randomDraw:
-        kind = "M"
-    
-    (time, amount) = s.getBuy(kind) if buy else s.getSell(kind)
-    
-    # If we have some patience, we will look if we expect the limit order 
-    # to succeed in time. If we don't expect it to, we still go for market order.
-    if time > 0:
-        # Get the quantity we expect to be traded via market orders in waiting time
-        (buyQuan, sellQuan) = exchange.getBuySellQuantity(time)
-        
-        # Alter these numbers toward the direction of the expected price.
-        # For instance, if we expect the price to increase by 10%, there should
-        # be 10% more buy orders. However, we take the average of this and the 
-        # current buy/sell quantity, since the history also takes price increases
-        # into account.
-        totQuan = buyQuan + sellQuan
-        sellQuan = sellQuan/2 + totQuan/(1 + belP/spot)/2
-        buyQuan = totQuan - sellQuan
-        
-        # For the AMM/LOB the decision of taking the limit/range order differs.
-        # In the LOB, we look at two things: 
-        # First, can we get what we want by waiting?
-        # Second, does the market order after waiting probably better?
-        # If either has answer yes, we do the limit order
+         (time, amount, lower, upper, kindOrder, changed, guessedTime) = forcedLiquidityOrderAMM(buy, belP, exchange, s)
+    else:
+        #TODO: shuffle the order at which conditions are looked at.
+        if buy and probOrder(belP, ask) > randomDraw: 
+            kind = "L"
+        elif not buy and probOrder(bid, belP) > randomDraw:
+            kind = "L"
+        elif buy and probOrder(belP, ask) < randomDraw:
+            kind = "M"
+        elif not buy and probOrder(bid, belP) < randomDraw:
+            kind = "M"
         if isinstance(exchange, LOB):
-            (p, kindOrder) = bestLimit(amount, belP, spot, exchange.bestAskPrice(), exchange.bestBidPrice())
-            liqAtP = exchange.getLiquidity(p) + abs(amount)
-            
-            # If waiting gives a better price, and waiting is within time, do it
-            if buy:
-                liqAtPnew = exchange.getLiquidity(p-1) + abs(amount)
-                if sellQuan - buyQuan >= liqAtPnew:
-                    p -= 1
-                    guessedTime = time*liqAtPnew/(sellQuan - buyQuan)
-                else:
-                    guessedTime = time*liqAtP/sellQuan
-                    if liqAtP > sellQuan or belP > ask:
-                        time = 0
-                        changed = True
-            else:
-                liqAtPnew = exchange.getLiquidity(p+1) + abs(amount)
-                if buyQuan - sellQuan >= liqAtPnew:
-                    p += 1
-                    guessedTime = time*liqAtPnew/(buyQuan - sellQuan)
-                else:
-                    guessedTime = time*liqAtP/buyQuan
-                    if liqAtP > buyQuan or belP < bid:
-                        time = 0
-                        changed = True
-
-        # In the AMM, we compute the expected price after waiting.
-        # If this is higher than our range, we have succesfully traded within the time
-        # Else, if the price is better than the current, waiting is also the way to go.
-        elif isinstance(exchange, AMM):
-            limit = False
-            
-            # If the price doesn't change, at least you'll earn fees. So limit order is better
-            if sellQuan == buyQuan:
-                limit = True
-            
-            (lower, upper, kindOrder) = bestRange(exchange, buy, belP, spot)
-            assets = max(amount, 0)
-            money = max(-belP*amount, 0)
-            with exchange.capacity.request() as request:
-                yield request
-                (L, fX, fM, expP) = exchange.getExpLiq(assets, money, lower, upper, sellQuan-buyQuan)
-            
-            sL = math.sqrt(lower)
-            sU = math.sqrt(upper)
-            
-            # If price not past range, compute the total price of this range order
-            expAss = L*(sU-expP)/(sU*expP) + fX/env.now*time*L
-            expMon = L*(expP-sL) + fM/env.now*time*L
-            
-            # You expect the range order to succeed if price is past limit
-            if buy and expP <= sL:
-                limit = True
-            elif not buy and expP >= sU:
-                limit = True
-            elif buy and expP > sU:
-                limit = False
-            elif not buy and expP < sL:
-                limit = False
-            elif buy and expAss+exchange.expM(expMon, expP) > exchange.expM(-belP*amount):
-                limit = True
-            elif not buy and expMon+exchange.exp(expAss, expP) > exchange.exp(amount):
-                limit = True
-
-            
-            if not limit:
-                time = 0
-                changed = True
-    
+            (time, amount, p, changed, kindOrder, guessedTime) = freeOrderLOB(buy, kind, belP, s, env, exchange)
+        else:
+            (time, amount, lower, upper, changed, kindOrder, guessedTime) = yield env.process(freeOrderAMM(buy, kind, belP, s, env, exchange))
+   
     # Market order
     if time == 0:
         with exchange.capacity.request() as request:
@@ -165,7 +76,8 @@ def trade(env, name, exchange, s, o, r):
         
     if isinstance(exchange, AMM):
         kind = "Assets" if amount < 0 else "Money"
-        #(lower, upper) = bestRange(exchange, buy, belP, spot)
+        assets = max(amount, 0)
+        money = max(-belP*amount, 0)
         with exchange.capacity.request() as request:
             yield request
             (assets, money, contract) = exchange.add(assets, money, lower, upper, kind)
@@ -194,6 +106,138 @@ def trade(env, name, exchange, s, o, r):
             money += money2
             completionPer = money/(amount*belP)
     o.orders.append((name, spot, belP, amount, time, guessedTime, env.now-now, assets, money, completionPer, filled))
+
+def forcedLiquidityOrderAMM(buy, belP, amm, s):
+    (lower, upper, kindOrder) = bestRange(amm, buy, belP, amm.spot())
+    (time, amount) = s.getBuy("L") if buy else s.getSell("L")
+    return (time, amount, lower, upper, kindOrder, False, -1)
+    
+def freeOrderAMM(buy, kind, belP, s, env, exchange):
+    (time, amount) = s.getBuy(kind) if buy else s.getSell(kind)        
+    (lower, upper, kindOrder) = bestRange(exchange, buy, belP, exchange.spot())
+    spot = exchange.spot()
+    changed = False
+    # If we have some patience, we will look if we expect the limit order 
+    # to succeed in time. If we don't expect it to, we still go for market order.
+    if time > 0:
+        # Get the quantity we expect to be traded via market orders in waiting time
+        (buyQuan, sellQuan) = exchange.getBuySellQuantity(time)
+        
+        # Alter these numbers toward the direction of the expected price.
+        # For instance, if we expect the price to increase by 10%, there should
+        # be 10% more buy orders. However, we take the average of this and the 
+        # current buy/sell quantity, since the history also takes price increases
+        # into account.
+        totQuan = buyQuan + sellQuan
+        sellQuan = sellQuan/2 + totQuan/(1 + belP/spot)/2
+        buyQuan = totQuan - sellQuan
+
+        # In the AMM, we compute the expected price after waiting.
+        # If this is higher than our range, we have succesfully traded within the time
+        # Else, if the price is better than the current, waiting is also the way to go.
+        limit = False
+        
+        # If the price doesn't change, at least you'll earn fees. So limit order is better
+        if sellQuan == buyQuan:
+            limit = True
+        
+        assets = max(amount, 0)
+        money = max(-belP*amount, 0)
+        with exchange.capacity.request() as request:
+            yield request
+            (L, fX, fM, expP) = exchange.getExpLiq(assets, money, lower, upper, sellQuan-buyQuan)
+        
+        sL = math.sqrt(lower)
+        sU = math.sqrt(upper)
+        
+        # If price not past range, compute the total price of this range order
+        expAss = L*(sU-expP)/(sU*expP) + fX/env.now*time*L
+        expMon = L*(expP-sL) + fM/env.now*time*L
+        
+        # You expect the range order to succeed if price is past limit
+        if buy and expP <= sL:
+            limit = True
+        elif not buy and expP >= sU:
+            limit = True
+        elif buy and expP > sU:
+            limit = False
+        elif not buy and expP < sL:
+            limit = False
+        elif buy and expAss+exchange.expM(expMon, expP) > exchange.expM(-belP*amount):
+            limit = True
+        elif not buy and expMon+exchange.exp(expAss, expP) > exchange.exp(amount):
+            limit = True
+
+        
+        if not limit:
+            time = 0
+            kindOrder = "M"
+            changed = True
+    return (time, amount, lower, upper, kindOrder, changed, -1)
+
+
+def forcedLiquidityOrderLOB(buy, belP, lob, s):
+    (time, amount) = s.getBuy("L") if buy else s.getSell("L")
+    (p, kindOrder) = bestLimit(amount, belP, lob.spot(), lob.bestAskPrice(), lob.bestBidPrice()) #(assets, belP, spot, bestAsk, bestBid)
+    return (time, amount, p, kindOrder, False, -1)
+
+def freeOrderLOB(buy, kind, belP, s, env, exchange):
+    (time, amount) = s.getBuy(kind) if buy else s.getSell(kind)
+    spot = exchange.spot()
+    ask = exchange.bestAskPrice()
+    bid = exchange.bestBidPrice()
+    (p, kindOrder) = bestLimit(amount, belP, spot, ask, bid)
+    guessedTime = 0
+    changed = False
+    
+    # If we have some patience, we will look if we expect the limit order 
+    # to succeed in time. If we don't expect it to, we still go for market order.
+    if time > 0:
+        # Get the quantity we expect to be traded via market orders in waiting time
+        (buyQuan, sellQuan) = exchange.getBuySellQuantity(time)
+        
+        # Alter these numbers toward the direction of the expected price.
+        # For instance, if we expect the price to increase by 10%, there should
+        # be 10% more buy orders. However, we take the average of this and the 
+        # current buy/sell quantity, since the history also takes price increases
+        # into account.
+        totQuan = buyQuan + sellQuan
+        sellQuan = sellQuan/2 + totQuan/(1 + belP/spot)/2
+        buyQuan = totQuan - sellQuan
+    
+        # For the AMM/LOB the decision of taking the limit/range order differs.
+        # In the LOB, we look at two things: 
+        # First, can we get what we want by waiting?
+        # Second, does the market order after waiting probably better?
+        # If either has answer yes, we do the limit order
+        liqAtP = exchange.getLiquidity(p) + abs(amount)
+        
+        # If waiting gives a better price, and waiting is within time, do it
+        if buy:
+            liqAtPnew = exchange.getLiquidity(p-1) + abs(amount)
+            if sellQuan - buyQuan >= liqAtPnew:
+                p -= 1
+                guessedTime = time*liqAtPnew/(sellQuan - buyQuan)
+            else:
+                guessedTime = time*liqAtP/sellQuan
+                if liqAtP > sellQuan or belP > ask:
+                    time = 0
+                    kindOrder = "M"
+                    changed = True
+                    guessedTime = 0
+        else:
+            liqAtPnew = exchange.getLiquidity(p+1) + abs(amount)
+            if buyQuan - sellQuan >= liqAtPnew:
+                p += 1
+                guessedTime = time*liqAtPnew/(buyQuan - sellQuan)
+            else:
+                guessedTime = time*liqAtP/buyQuan
+                if liqAtP > buyQuan or belP < bid:
+                    time = 0
+                    kindOrder = "M"
+                    changed = True
+                    guessedTime = 0
+    return (time, amount, p, changed, kindOrder, guessedTime)
         
 def bestRange(amm, buy, belP, spot):
     # Believed price is higher than market, we want to buy
