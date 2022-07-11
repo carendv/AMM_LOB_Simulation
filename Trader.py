@@ -34,16 +34,15 @@ def trade(env, name, exchange, s, o, r):
     changed = False
 
     randomDraw = random.random()
-    if isinstance(exchange, LOB) and exchange.getLiquidity(900) < 40000:
-        (time, amount, p, kindOrder, changed, guessedTime) = forcedLiquidityOrderLOB(True, belP, exchange, s)
-    elif isinstance(exchange, LOB) and exchange.getLiquidity(1200) < 40000:
-        (time, amount, p, kindOrder, changed, guessedTime) = forcedLiquidityOrderLOB(False, belP, exchange, s)
-    elif isinstance(exchange, AMM) and exchange.getLiquidityDown() < 40000:
-         (time, amount, lower, upper, kindOrder, changed, guessedTime) = forcedLiquidityOrderAMM(True, belP, exchange, s)
-    elif isinstance(exchange, AMM) and exchange.getLiquidityUp() < 40000:
-         (time, amount, lower, upper, kindOrder, changed, guessedTime) = forcedLiquidityOrderAMM(False, belP, exchange, s)
-    # elif isinstance(exchange, AMM) and exchange.L < 100000:
-    #      (time, amount, lower, upper, kindOrder, changed, guessedTime) = forcedLiquidityOrderAMM(buy, belP, exchange, s)
+    if isinstance(exchange, LOB):
+        ret = randomCheckOrderLOB(exchange, belP, s)
+    elif isinstance(exchange, AMM):
+        ret = randomCheckOrderAMM(exchange, belP, s)
+
+    if isinstance(exchange, AMM) and ret:
+        (time, amount, lower, upper, kindOrder, changed, guessedTime) = ret
+    elif isinstance(exchange, LOB) and ret:
+        (time, amount, p, kindOrder, changed, guessedTime) = ret
     else:
         #TODO: shuffle the order at which conditions are looked at.
         if buy and probOrder(belP, ask) > randomDraw: 
@@ -316,3 +315,19 @@ def bestLimit(assets, belP, spot, bestAsk, bestBid):
 
 def probOrder(belP, marketPrice):
     return 1/(1+np.e**(-(marketPrice-belP)/4))
+
+def randomCheckOrderAMM(exchange, belP, s):
+    lst_condition_result = [(exchange.getLiquidityDown() < 40000, True), (exchange.getLiquidityUp() < 40000, False)]
+    random.shuffle(lst_condition_result)
+    
+    for condition, param in lst_condition_result:
+        if condition:
+            return forcedLiquidityOrderAMM(param, belP, exchange, s)
+
+def randomCheckOrderLOB(exchange, belP, s):
+    lst_condition_result = [(exchange.getLiquidity(900) < 40000, True), (exchange.getLiquidity(1200) < 40000, False)]
+    random.shuffle(lst_condition_result)
+    
+    for condition, param in lst_condition_result:
+        if condition:
+            return forcedLiquidityOrderLOB(param, belP, exchange, s)
