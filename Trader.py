@@ -15,13 +15,14 @@ from matplotlib import pyplot as plt
 random.seed(10)
     
 def trade(env, name, exchange, s, o, r):
-    print(name)
+    #print(name)
     guessedTime = 0
     now = env.now
     spot = exchange.spot()
     ask = exchange.bestAskPrice()
     bid = exchange.bestBidPrice()
-    belP = round(s.trueP+(min(max(np.random.normal(0, 1), -3), 3))) if r.random() < s.infP else spot
+    informed = r.random() < s.infP
+    belP = round(s.trueP+(min(max(np.random.normal(0, 1), -3), 3))) if informed else spot
     kind = None
     
     if belP != spot:
@@ -30,6 +31,7 @@ def trade(env, name, exchange, s, o, r):
         buy = 0.5 < r.random()
     
     kind = None
+    changed = False
 
     randomDraw = random.random()
     if isinstance(exchange, LOB) and exchange.getLiquidity(900) < 10000:
@@ -78,7 +80,7 @@ def trade(env, name, exchange, s, o, r):
         # Second, does the market order after waiting probably better?
         # If either has answer yes, we do the limit order
         if isinstance(exchange, LOB):
-            p = bestLimit(amount, belP, spot, exchange.bestAskPrice(), exchange.bestBidPrice())
+            (p, kindOrder) = bestLimit(amount, belP, spot, exchange.bestAskPrice(), exchange.bestBidPrice())
             liqAtP = exchange.getLiquidity(p) + abs(amount)
             
             # If waiting gives a better price, and waiting is within time, do it
@@ -91,6 +93,7 @@ def trade(env, name, exchange, s, o, r):
                     guessedTime = time*liqAtP/sellQuan
                     if liqAtP > sellQuan or belP > ask:
                         time = 0
+                        changed = True
             else:
                 liqAtPnew = exchange.getLiquidity(p+1) + abs(amount)
                 if buyQuan - sellQuan >= liqAtPnew:
@@ -100,6 +103,7 @@ def trade(env, name, exchange, s, o, r):
                     guessedTime = time*liqAtP/buyQuan
                     if liqAtP > buyQuan or belP < bid:
                         time = 0
+                        changed = True
 
         # In the AMM, we compute the expected price after waiting.
         # If this is higher than our range, we have succesfully traded within the time
@@ -111,7 +115,7 @@ def trade(env, name, exchange, s, o, r):
             if sellQuan == buyQuan:
                 limit = True
             
-            (lower, upper) = bestRange(exchange, buy, belP, spot)
+            (lower, upper, kindOrder) = bestRange(exchange, buy, belP, spot)
             assets = max(amount, 0)
             money = max(-belP*amount, 0)
             with exchange.capacity.request() as request:
@@ -142,6 +146,7 @@ def trade(env, name, exchange, s, o, r):
             
             if not limit:
                 time = 0
+                changed = True
     
     # Market order
     if time == 0:
@@ -155,14 +160,16 @@ def trade(env, name, exchange, s, o, r):
                 (assets, money) = exchange.trade(amount)
                 completionPer = money/(amount*belP)
             o.orders.append((name, spot, belP, amount, time, guessedTime, env.now-now, assets, money, completionPer, "M"))
+            o.strats.append(("M", informed, changed))
             return 
         
     if isinstance(exchange, AMM):
         kind = "Assets" if amount < 0 else "Money"
-        (lower, upper) = bestRange(exchange, buy, belP, spot)
+        #(lower, upper) = bestRange(exchange, buy, belP, spot)
         with exchange.capacity.request() as request:
             yield request
             (assets, money, contract) = exchange.add(assets, money, lower, upper, kind)
+            o.strats.append((kindOrder, informed, changed, lower, upper))
         notEnded = True
         while time > 0 and notEnded:
             yield env.timeout(min(60, time))
@@ -173,7 +180,8 @@ def trade(env, name, exchange, s, o, r):
     else:
         with exchange.capacity.request() as request:
             yield request
-            (assets, money, contract) = exchange.add(amount, p, name) #Temporarily also name
+            (assets, money, contract) = exchange.add(amount, p, name)
+            o.strats.append((kindOrder, informed, changed, p))
         yield contract.succes | env.timeout(time)
     with exchange.capacity.request() as request:
         yield request
@@ -195,26 +203,31 @@ def bestRange(amm, buy, belP, spot):
         upper = math.ceil(spot)
         if lower == upper:
             upper +=1
+        kind = "L-Buy-U"
     # Believed price is higher than market, we want to sell
     # Sell limit at correct price
     elif belP > spot and not buy:
         lower = math.ceil(spot) #TODO: Step in from point of no liquidity
         upper = amm.s.maxPriceRange
-        if lower == upper:
-            lower -= 1
+        kind = "L-Sell-A"
     # Believed price is lower than market, we want to sell
     # Sell limit undercut
     elif belP < spot and not buy:
         lower = math.floor(spot)
         upper = math.ceil(spot)
+        if lower == upper:
+            lower -= 1
+        kind = "L-Sell-U"
     # Believed price is lower than market, we want to buy
     # Buy limit at correct price
     elif belP < spot and buy:
         lower = amm.s.minPriceRange
         upper = math.floor(spot) #TODO: Step in from point of no liquidity
+        kind = "L-Buy-A"
     else:
         lower = int(min(np.floor(np.percentile(amm.prices, 5)**2), np.floor(spot)-2))
         upper = int(max(np.ceil(np.percentile(amm.prices, 95)**2), np.ceil(spot)+2))
+        kind = "L-row"
     
     if lower == upper:
         lower -= 1
@@ -224,7 +237,7 @@ def bestRange(amm, buy, belP, spot):
     upper = int(min(upper, amm.s.maxPriceRange))
     
     
-    return (lower,upper)
+    return (lower,upper, kind)
 
 # Assets are the number of assets we sell to the market, thus. 
 # Assets < 0: Buy from market
@@ -237,25 +250,25 @@ def bestLimit(assets, belP, spot, bestAsk, bestBid):
             # Undercut if we believe the true price to be higher.
             # We still get a good deal since it is cheap.
             if belP > bestBid:
-                return min(bestBid+1, bestAsk-1)
+                return (min(bestBid+1, bestAsk-1), "L-Buy-U")
             # If we believe the price to be lower, we don't want to pay extra.
             else:
-                return belP
+                return (belP, "L-Buy-A")
         # informed seller
         else:
             # Undercut if we believe the true price to be lower.
             # We still get a good deal since it is sold more expensive.
             if belP < bestAsk:
-                return max(bestAsk-1, bestBid+1)
+                return (max(bestAsk-1, bestBid+1), "L-Sell-U")
             # If we believe the price to be higher, we don't want to get less.
             else:
-                return belP
+                return (belP, "L-Sell-A")
     # Uninformed trader
     else:
         if assets < 0:
-            return bestBid
+            return (bestBid, "L-Buy-Row")
         else:
-            return bestAsk
+            return (bestAsk, "L-Sell-Row")
 
 def probOrder(belP, marketPrice):
     return 1/(1+np.e**(-(marketPrice-belP)/4))
