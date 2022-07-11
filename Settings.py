@@ -35,8 +35,7 @@ class Settings(object):
         self.liqMax = 8+(1-self.liqP)*12
         self.initTimePerVol = ((self.liqMin+self.liqMax)/2) / (1/(self.NAMM+self.NLOB) * 0.5 * 0.5 * (self.transSize[0]+self.transSize[1])/2)
         self.lookNTransactionsBack = 100
-        self.AMMmax = 1025 # The maximal price in AMM
-        self.AMMmin = 980# not used any more...
+        self.AMMmax = 1100 # The maximal price in AMM
         self.minPriceRange = minPriceRange
         self.maxPriceRange = 1200
         # The minimal price in AMM, this function is yet to be proven to satisfy that we have 10X=Y

@@ -277,13 +277,17 @@ class AMM(Exchange):
     # X < 0: buying from AMM
     # X > 0: Selling to AMM
     # M: Money you get from the AMM
-    def exp(self, X): 
-        p = self.sP
-        L = self.L
-        index = self.index
+    def exp(self, X, p=None): 
+        if not p:
+            p = self.sP
+            L = self.L
+            index = self.index
+        else:
+            (index, _) = self.__getTickWindowDown__(int(np.ceil(p**2)-self.s.minPriceRange))
+            L = round(np.sum(self.dL[:index+1]))
         M = 0
         while X<0 and L>0:
-            (index, pU) = self.__getTickWindowUp__(index)
+            (indexU, pU) = self.__getTickWindowUp__(index)
             pN = 1/(1/p + X/L)
             if pN < pU and pN > 0:
                 M += L*(pN-p)
@@ -294,10 +298,11 @@ class AMM(Exchange):
                 M += L*(pU-p)
                 X -= (1/pU - 1/p)*L
                 p = pU
-                L+= self.dL[index] 
+                L+= self.dL[indexU]
+                index = indexU
         X = X*(1-self.F)
         while X > 0 and L>0:
-            (indexL, pL) = self.__getTickWindowDown__(index) # Easy fix for the fact that index saved is lower index
+            (indexL, pL) = self.__getTickWindowDown__(index) 
             pN = 1/(1/p + X/L)
             if pN > pL:
                 M -= L*(pN-p)
@@ -322,8 +327,44 @@ class AMM(Exchange):
         else:
             return M
         
-    # TODO: Check function
+    def expM(self, M, p=None):
+        if not p:
+            p = self.sP
+            L = self.L
+            index = self.index
+        else:
+            (index, _) = self.__getTickWindowDown__(int(np.ceil(p**2)-self.s.minPriceRange))
+            L = round(np.sum(self.dL[:index+1]))
+            
+        X = 0
+        M = M*(1-self.F)
+        (inU, pU) = self.__getTickWindowUp__(index)
+        while M > 0 and (inU < len(self.nR) or L>0):
+            if L == 0 and index == inU:
+                L += self.dL[inU]
+                index = inU
+                break
+            elif L == 0:
+                M = 0
+                break
+            pN = M/L + p
+            if pN < pU and pN > 0:
+                X -= (1/pN - 1/p)*L
+                M = 0
+            else:
+                X -= (1/pU - 1/p)*L
+                M -= L*(pU-p)
+                p = pU
+                L += self.dL[inU]
+                index = inU
+                (inU, pU) = self.__getTickWindowUp__(index)
+        
+        return X
+    
     def getPrice(self, assets, index = None, sP = None, L = None):
+        if assets == 0:
+            return self.sP
+        
         if not index:
             index = self.index
         if not sP:
@@ -343,15 +384,15 @@ class AMM(Exchange):
                 L = round(L-self.dL[index])
                 index = inL
             else:
-                pN = self.__getPricedX__(assets*(1-self.F)) if inU < len(self.nR) else 0
+                pN = 1/(1/sP + assets*(1-self.F)/L)
                 
                 if pN >= pL:
                     return pN
                 else:
-                    assets -= self.__getdXpN__(pL)/(1-self.F)
+                    assets -= (1/pL - 1/sP)*L
                     sP = pL
-                    index = inL
                     L = round(L-self.dL[index])
+                    index = inL
             (inL, pL) = self.__getTickWindowDown__(index)
             
         if assets > 0:
@@ -366,11 +407,14 @@ class AMM(Exchange):
                 L += self.dL[pU]
                 index = pU
             else:
-                pN = self.__getPricedX__(assets) if index > -1 else math.inf
+                if (1/pU -1/sP)*L > assets:
+                    pN = pU+1
+                else:
+                    pN = 1/(1/sP + assets/L)
                 if pN <= pU:
                     return pN
                 else: 
-                    assets -= self.__getdXpN__(pU)
+                    assets -= (1/pU - 1/sP)*L
                     sP = pU
                     L += self.dL[inU]
                     index = inU
@@ -378,15 +422,18 @@ class AMM(Exchange):
         
         return math.sqrt(self.s.maxPriceRange)
     
-    def getExpLiq(self, assets, money, lower, upper):
+    def getExpLiq(self, assets, money, lower, upper, trading):
         index = self.index
         sP = self.sP
         (_, _, C) = self.add(assets, money, lower, upper, record = False)
         L = C.L
+        fX = C.fX
+        fM = C.fM
+        expP = self.getPrice(trading)
         C.retrieve()
         self.sP = sP
         self.__setIndex__(index)
-        return L
+        return (L, fX, fM, expP)
     
     def __getTickWindow__(self):
         (inU, pU) = self.__getTickWindowUp__()
@@ -405,20 +452,21 @@ class AMM(Exchange):
         return (inU, pu)
     
     # Returns pair: index next lowerbound, sqrt price lower bound
+    # Returns -1 when there is no next lower bound
     def __getTickWindowDown__(self, index = None):
-        if not index:
+        if index == None:
             index = self.index
         
         inL = index
         
         if inL == 0:
-            return (0, 0)
+            return (-1, math.sqrt(self.s.minPriceRange))
         
         inL -=1
         while inL >= 0 and self.nR[inL] == 0:
             inL -= 1
         
-        if self.index == len(self.nR)-1:
+        if index == len(self.nR)-1:
             return (inL, math.inf)
         else:
             return (inL, math.sqrt(index+self.s.minPriceRange))
@@ -597,6 +645,40 @@ class AMM(Exchange):
             M += self.feeGrowthM[b - self.s.minPriceRange]
             b -=1
         return (X, M)
+    
+    def getLiquidityDown(self):
+        index = self.index
+        sP = self.sP
+        L = self.L
+        lower = math.sqrt(self.s.minPriceRange)
+        (inL, pL) = self.__getTickWindowDown__(index)
+        
+        X = 0
+        
+        while sP > lower and (L > 0 or sP == pL) and index>=0:
+            X += (1/pL - 1/sP)*L
+            L = round(L-self.dL[index])
+            index = inL
+            sP = pL
+            (inL, pL) = self.__getTickWindowDown__(index)
+            
+        return X
+    
+    def getLiquidityUp(self):
+        index = self.index
+        sP = self.sP
+        L = self.L
+        upper = math.sqrt(self.s.maxPriceRange)
+        (inU, pU) = self.__getTickWindowUp__(index)
+        
+        X = 0
+        while sP < upper and (L > 0 or sP == pU):
+            X -= (1/pU - 1/sP)*L
+            index = inU
+            L = round(L+self.dL[index])
+            sP = pU
+            (inU, pU) = self.__getTickWindowUp__(index)
+        return X
 
 class Contract(object):
     def __init__(self, pa, pb, L, fX, fM, amm, kind):

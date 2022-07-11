@@ -9,6 +9,7 @@ Created on Mon Mar 21 16:07:57 2022
 import simpy
 import random
 import math
+import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 from statsmodels.tsa.stattools import adfuller
@@ -126,6 +127,15 @@ def visualizeResults(results):
         print("The market prices are influenced by the past.")
     print()
     
+        
+    #############################
+    ### Completion Percentage ###
+    ############################# 
+    #(name, spot, belP, amount, time, guessedTime, env.now-now, assets, money, completionPer, filled)
+    orders = pd.DataFrame(results.orders, columns=["Name", "Spot", "belP", "Amount", \
+                                        "Start", "GuessedTime", "ActualTime", "Assets", \
+                                        "Money", "CompletionPer", "Filled"])
+    
 def plotWithInformed(data, points, name):
     names = ["Price", "Unit spread", "Cumulative sell volume", "cumulative buy volume"]
     dataS = [data.prices, data.spread, data.sellVol, data.buyVol]
@@ -170,5 +180,5 @@ def simulation(NAMM = 1, NLOB = 1, shocks=0, days=3, seed=100):
 
     return outputs
 
-results = simulation(NAMM=1, NLOB=1, shocks=2, days=10, seed=100)
+results = simulation(NAMM=1, NLOB=1, shocks=1, days=1, seed=100)
 
