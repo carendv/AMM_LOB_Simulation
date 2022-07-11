@@ -29,6 +29,9 @@ class AMM(Exchange):
         # Compute lower bound of initial range order given initial sell and pool liquidity
         a = round( ((s.trueP*(s.initLiqSell+self.L/pb) - s.initLiqBuy*s.trueP)/self.L)**2 )
         
+        # Make sure initial liquidity slowly disappears from market.
+        env.process(initRangeOrder(Contract(math.sqrt(a), pb, self.L, 0, 0, self, None), s).start())
+        
         # Update price for rounding errors
         self.sP = math.sqrt( (s.initLiqBuy*s.trueP + self.L*math.sqrt(a))/(s.initLiqSell + self.L/pb) )
         
@@ -755,3 +758,38 @@ class SellRangeOrder(Contract):
         (asset, money2) = self.amm.trade(asset+amount)
         money += money2
         return (asset, money, filled)
+
+class initRangeOrder():
+    def __init__(self, contract, settings):
+        self.c = contract
+        self.lower = self.c.a
+        self.upper = self.c.b
+        self.amm = self.c.amm
+        self.s = settings
+        self.end = settings.shockWait
+        self.initL = self.c.L
+    
+    def start(self):
+        while self.c.L > 0.01*self.initL:
+            yield self.amm.env.timeout(100)
+            with self.amm.capacity.request() as request:
+                yield request
+                L = self.c.L
+                Lshould = self.initL*(self.end-self.amm.env.now)/self.end
+                per = max(Lshould/L, 0.01)
+                (assets, money, _) = self.c.retrieve()
+                assets = max(assets*per,0)
+                money = max(money*per,0)
+                if assets > 0 and money > 0:
+                    (_, _, self.c) = self.amm.add(assets, money, self.lower, self.upper)
+                else: 
+                    self.c.L = 0
+
+
+
+
+
+
+
+
+
