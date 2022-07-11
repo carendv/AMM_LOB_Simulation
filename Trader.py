@@ -173,7 +173,7 @@ def freeOrderAMM(buy, kind, belP, s, env, exchange):
             time = 0
             kindOrder = "M"
             changed = True
-    return (time, amount, lower, upper, kindOrder, changed, -1)
+    return (time, amount, lower, upper, changed, kindOrder, -1)
 
 
 def forcedLiquidityOrderLOB(buy, belP, lob, s):
