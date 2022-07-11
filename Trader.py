@@ -31,6 +31,7 @@ def trade(env, name, exchange, s, o, r):
         buy = 0.5 < r.random()
     
     kind = None
+    changed = False
 
     randomDraw = random.random()
     if isinstance(exchange, LOB) and exchange.getLiquidity(900) < 10000:
@@ -92,6 +93,7 @@ def trade(env, name, exchange, s, o, r):
                     guessedTime = time*liqAtP/sellQuan
                     if liqAtP > sellQuan or belP > ask:
                         time = 0
+                        changed = True
             else:
                 liqAtPnew = exchange.getLiquidity(p+1) + abs(amount)
                 if buyQuan - sellQuan >= liqAtPnew:
@@ -101,6 +103,7 @@ def trade(env, name, exchange, s, o, r):
                     guessedTime = time*liqAtP/buyQuan
                     if liqAtP > buyQuan or belP < bid:
                         time = 0
+                        changed = True
 
         # In the AMM, we compute the expected price after waiting.
         # If this is higher than our range, we have succesfully traded within the time
@@ -143,6 +146,7 @@ def trade(env, name, exchange, s, o, r):
             
             if not limit:
                 time = 0
+                changed = True
     
     # Market order
     if time == 0:
@@ -156,7 +160,7 @@ def trade(env, name, exchange, s, o, r):
                 (assets, money) = exchange.trade(amount)
                 completionPer = money/(amount*belP)
             o.orders.append((name, spot, belP, amount, time, guessedTime, env.now-now, assets, money, completionPer, "M"))
-            o.strats.append(("M", informed))
+            o.strats.append(("M", informed, changed))
             return 
         
     if isinstance(exchange, AMM):
@@ -165,7 +169,7 @@ def trade(env, name, exchange, s, o, r):
         with exchange.capacity.request() as request:
             yield request
             (assets, money, contract) = exchange.add(assets, money, lower, upper, kind)
-            o.strats.append((kindOrder, informed, lower, upper))
+            o.strats.append((kindOrder, informed, changed, lower, upper))
         notEnded = True
         while time > 0 and notEnded:
             yield env.timeout(min(60, time))
@@ -177,7 +181,7 @@ def trade(env, name, exchange, s, o, r):
         with exchange.capacity.request() as request:
             yield request
             (assets, money, contract) = exchange.add(amount, p, name)
-            o.strats.append((kindOrder, informed, p))
+            o.strats.append((kindOrder, informed, changed, p))
         yield contract.succes | env.timeout(time)
     with exchange.capacity.request() as request:
         yield request

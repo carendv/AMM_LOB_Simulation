@@ -147,6 +147,8 @@ def visualizeResults(results):
             print(f"Informed traders doing {kind}: {c[(kind, informed)]}")
         else:
             print(f"Non informed traders doing {kind}: {c[(kind, informed)]}")
+    c = Counter(elem[2] for elem in results.strats)
+    print(f"The number of limit orders that switched to market order: {c[True]}")
     print()
         
     
