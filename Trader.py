@@ -15,7 +15,7 @@ from matplotlib import pyplot as plt
 random.seed(10)
     
 def trade(env, name, exchange, s, o, r):
-    #print(name)
+    print(name)
     guessedTime = 0
     now = env.now
     spot = exchange.spot()
@@ -34,16 +34,16 @@ def trade(env, name, exchange, s, o, r):
     changed = False
 
     randomDraw = random.random()
-    if isinstance(exchange, LOB) and exchange.getLiquidity(900) < 10000:
+    if isinstance(exchange, LOB) and exchange.getLiquidity(900) < 40000:
         (time, amount, p, kindOrder, changed, guessedTime) = forcedLiquidityOrderLOB(True, belP, exchange, s)
-    elif isinstance(exchange, LOB) and exchange.getLiquidity(1200) < 10000:
+    elif isinstance(exchange, LOB) and exchange.getLiquidity(1200) < 40000:
         (time, amount, p, kindOrder, changed, guessedTime) = forcedLiquidityOrderLOB(False, belP, exchange, s)
-    elif isinstance(exchange, AMM) and exchange.getLiquidityDown() < 10000:
+    elif isinstance(exchange, AMM) and exchange.getLiquidityDown() < 40000:
          (time, amount, lower, upper, kindOrder, changed, guessedTime) = forcedLiquidityOrderAMM(True, belP, exchange, s)
-    elif isinstance(exchange, AMM) and exchange.getLiquidityUp() < 10000:
+    elif isinstance(exchange, AMM) and exchange.getLiquidityUp() < 40000:
          (time, amount, lower, upper, kindOrder, changed, guessedTime) = forcedLiquidityOrderAMM(False, belP, exchange, s)
-    elif isinstance(exchange, AMM) and exchange.L < 100000:
-         (time, amount, lower, upper, kindOrder, changed, guessedTime) = forcedLiquidityOrderAMM(buy, belP, exchange, s)
+    # elif isinstance(exchange, AMM) and exchange.L < 100000:
+    #      (time, amount, lower, upper, kindOrder, changed, guessedTime) = forcedLiquidityOrderAMM(buy, belP, exchange, s)
     else:
         #TODO: shuffle the order at which conditions are looked at.
         if buy and probOrder(belP, ask) > randomDraw: 

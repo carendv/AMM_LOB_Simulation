@@ -45,7 +45,7 @@ class Settings(object):
         self.totTime = self.days*60*60*8
         
         # Variables w.r.t. informed traders
-        self.infP = 0.1
+        self.infP = 0.2
         self.minInfP = self.infP
         self.maxInfP = 0.75
         
