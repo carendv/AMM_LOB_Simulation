@@ -119,17 +119,23 @@ class LOB(Exchange):
             (assetsAdd, amount) = self.bestAsk.get(amount)
             assets += assetsAdd
         self.marketBuyTransactions.push(assets + amount/self.s.maxPriceRange)
+        
+        self.addStatistics(sellVol = 0, buyVol = assets)
+        
         return (assets, amount)
       
     # We assume amount>0, thus selling
     def trade(self, amount):
-        self.marketSellTransactions.push(amount)
+        orAmount = amount
         (totalBought, totalSold) = self.__getliquidity__()
         self.allPrices.append((self.spot(), totalBought, totalSold))
         money = 0
         while self.bestBid and amount>0.00000001:
             (amount, moneyAdd) = self.bestBid.get(amount)
             money += moneyAdd
+        
+        self.marketSellTransactions.push(orAmount - amount)
+        self.addStatistics(sellVol = orAmount - amount, buyVol = 0)
            
         return (amount, money)
 
@@ -239,9 +245,3 @@ class SellLimitOrder(LimitOrder):
         (assets, money2) = self.lob.trade(self.assets)
         self.setAssets(0)
         return (assets, money+money2, filled)
-        
-
-#lob = LOB(simpy.Environment(), 1, Settings())
-#(assets, money, lo) = lob.add(1, 1001)
-#(assets, money) = lob.tradeM(2004)
-#lo.cancel()

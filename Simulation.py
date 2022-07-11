@@ -12,6 +12,7 @@ import math
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
+from statsmodels.tsa.stattools import adfuller
 
 from Settings import Settings
 from Output import Output
@@ -32,21 +33,20 @@ def setup(env, s, o, kindExchange, i):
     incr = -math.inf
     decr = -math.inf
     start = -1
+    trades = 0
         
     while True:
         yield env.timeout(random.randint(s.liqMin,s.liqMax))
         # Call process for a new client
         if (shockIn-1)*s.shockTime + s.shockWait < env.now:
-            s.trueP += 10 
+            s.trueP += s.shockStep
             shockIn += 1
             incr = env.now + s.shockIncrTime
             start = env.now
-            o.points.append(o.numTrades)
         elif incr > env.now:
             s.infP = (s.maxInfP-s.minInfP)/(incr-start)*(env.now-start)+s.minInfP
         elif incr + 10 > env.now:
             s.infP = s.maxInfP
-            o.points.append(o.numTrades)
             decr = env.now + s.shockDecrTime
             start = env.now
             incr = 0
@@ -54,83 +54,131 @@ def setup(env, s, o, kindExchange, i):
             s.infP = s.maxInfP - (s.maxInfP-s.minInfP)/(decr-start)*(env.now-start)
         elif decr + 10 > env.now:
             s.infP = s.minInfP
-            o.points.append(o.numTrades)
             decr = 0
 
-        env.process(trade(env, o.numTrades, o.exchange, s, o, random))
-        o.numTrades += 1
+        env.process(trade(env, trades, o.exchange, s, o, random))
+        trades += 1
 
-def visualizeLOBResults(results):
-    orders = pd.DataFrame(results.orders, columns=['Name', 'Spot', 'belP', 'AmountWanted', 'Time', 'GuessedTime', 'PassedTime', 'Assets', 'Money', 'CompletionPer', 'Kind'])
+def visualizeResults(results):
+    statistics = results.exchange.statistics
+    statistics.buyVol.remove(0)
+    statistics.sellVol.remove(0)
     
-    plt.figure()
-    plt.plot(results.prices)    
-    for i in range(round(len(results.points)/3)):
-        plt.axvspan(results.points[i*3], results.points[i*3+1], alpha = 0.5, color='g')
-        plt.axvspan(results.points[i*3+1], results.points[i*3+2], alpha = 0.5, color='r')
-    plt.show()
+    print("#############")
+    print(f"### {results.exchange.name} ###")
+    print("#############")
     
-    plt.figure()
-    plt.plot([x for (_, x, _) in results.exchange.allPrices]) #Buy
-    plt.figure()
-    plt.plot([x for (_, _, x) in results.exchange.allPrices]) # Sell
-
-    mo = orders[orders.Kind == "M"]
-    moBuy = mo[mo.AmountWanted < 0]
-    moSell = mo[mo.AmountWanted > 0]
-    lo = orders[orders.Kind != "M"]
-    loBF = lo[(lo.AmountWanted < 0) & (lo.Kind)]
-    loBU = lo[(lo.AmountWanted < 0) & (lo.Kind == False)]
-    loSF = lo[(lo.AmountWanted > 0) & (lo.Kind)]
-    loSU = lo[(lo.AmountWanted > 0) & (lo.Kind == False)]
+    ##########################################################
+    ### Find plots where number of informed trades changes ###
+    ##########################################################
+    points = []
+    state = "c"
+    infP = statistics.informedProb
+    for (i, x) in enumerate(infP):
+        if i == 0:
+            continue
+        elif infP[i]-infP[i-1] > 0 and state == "c":
+            points.append(i)
+            state = "i"
+        elif infP[i]-infP[i-1] < 0 and state == "i":
+            points.append(i)
+            state = "d"
+        elif infP[i] == results.exchange.s.minInfP and state == "d":
+            points.append(i-1)
+            state = "c"  
     
-    print("Market buy orders:", len(moBuy))
-    print("Market sell orders:", len(moSell))
-    print("Filled limit buy orders:", len(loBF))
-    print("Unfilled limit buy orders:", len(loBU))
-    print("Filled limit sell orders:", len(loSF))
-    print("Unfilled limit sell orders:", len(loSU))
+    ####################
+    ### Create plots ###
+    ####################
+    plotWithInformed(statistics, points, results.exchange.name)
     
-    lo = orders[orders.Time>0]
-    plt.figure()
-    plt.hist(lo.GuessedTime-lo.PassedTime, bins = np.arange(-5000, 5000, 10))
-
-def visualizeAMMResults(results):
-    orders = pd.DataFrame(results.orders, columns=['Name', 'Spot', 'belP', 'AmountWanted', 'Time', 'GuessedTime', 'PassedTime', 'Assets', 'Money', 'CompletionPer', 'Kind'])
-    plt.figure()
+    #######################
+    ### Price discovery ###
+    #######################
+    for i in range(round(len(points)/3)):
+        a = results.exchange.s.orP + i*results.exchange.s.shockStep
+        b = results.exchange.s.orP + (i+1)*results.exchange.s.shockStep
+        index = next(j for j,v in enumerate(statistics.prices) if v >= b and j >= points[i*3])
+        buyVol = round(statistics.buyVol[index]-statistics.buyVol[points[i*3]])
+        sellVol = round(statistics.sellVol[index]-statistics.sellVol[points[i*3]])
+        time = statistics.times[index]-statistics.times[points[i*3]]
+        trades = index-points[i*3]
+        print(f"Shock {i+1} took the price from {a} to {b}.")
+        print(f"{time} seconds went by and there where {trades} trades.")
+        print(f"The buy volume was {buyVol}, while the sell volume was {sellVol}.")
     
-    plt.plot(results.prices)    
-    for i in range(round(len(results.points)/3)):
-        plt.axvspan(results.points[i*3], results.points[i*3+1], alpha = 0.5, color='g')
-        plt.axvspan(results.points[i*3+1], results.points[i*3+2], alpha = 0.5, color='r')
+    ####################
+    ### Random walks ###
+    ####################  
+    # There should be a random walk when the informed trades are on the lower threshold
+    points.insert(0, 0)
+    points.append(len(statistics.prices)-1)
+    pvalues = []
+    for i in range(int(np.ceil(len(points)/3))):
+        statPart = statistics.prices[points[i*3]:points[i*3+1]]
+        rw = adfuller(statPart)
+        pvalues.append(round(rw[1], 4))
     
-    lo = orders[orders.Time>0]
-    plt.figure()
-    plt.hist(lo.GuessedTime-lo.PassedTime, bins = np.arange(-5000, 5000, 10))
+    print()
+    print(f"Found p-values of stationary parts: {pvalues}")
+    if all(i > 0.05 for i in pvalues):
+        print("The market has perfect information.")
+    else:
+        print("The market prices are influenced by the past.")
+    print()
+    
+        
+    #############################
+    ### Completion Percentage ###
+    ############################# 
+    #(name, spot, belP, amount, time, guessedTime, env.now-now, assets, money, completionPer, filled)
+    orders = pd.DataFrame(results.orders, columns=["Name", "Spot", "belP", "Amount", \
+                                        "Start", "GuessedTime", "ActualTime", "Assets", \
+                                        "Money", "CompletionPer", "Filled"])
+    
+def plotWithInformed(data, points, name):
+    names = ["Price", "Unit spread", "Cumulative sell volume", "cumulative buy volume"]
+    dataS = [data.prices, data.spread, data.sellVol, data.buyVol]
+    num = len(names)
+    rows = 2
+    columns = num/rows
+    
+    fig = plt.figure()
+    fig.suptitle(name)
+    for i in range(num):
+        plt.subplot(rows, int(np.ceil(columns)), i+1)
+        plt.plot(data.times, dataS[i])
+        plt.xlabel("Time (s)")
+        plt.ylabel(names[i])
+        plt.grid(True)    
+        for i in range(round(len(points)/3)):
+            plt.axvspan(data.times[points[i*3]], data.times[points[i*3+1]], alpha = 0.5, color='g')
+            plt.axvspan(data.times[points[i*3+1]], data.times[points[i*3+2]], alpha = 0.5, color='r')
+    plt.tight_layout()  
     
 def simulation(NAMM = 1, NLOB = 1, shocks=0, days=3, seed=100): 
     outputs = []
     for i in range(NAMM):
         settings = Settings(NAMM=1, NLOB=0, shocks=shocks, days=days, seed=seed)
-        output = Output()
+        output = Output(settings)
         random.seed(settings.seed)
         env = simpy.Environment()
         env.process(setup(env, settings, output, "AMM", i))
         env.run(until=settings.totTime)
-        visualizeAMMResults(output)
+        visualizeResults(output)
         outputs.append(output)
         
     for i in range(NLOB):
         settings = Settings(NAMM=0, NLOB=1, shocks=shocks, days=days, seed=seed)
-        output = Output()
+        output = Output(settings)
         random.seed(settings.seed)
         env = simpy.Environment()
         env.process(setup(env, settings, output, "LOB", i))
         env.run(until=settings.totTime)
-        visualizeLOBResults(output)
+        visualizeResults(output)
         outputs.append(output)
 
-    return output
+    return outputs
 
-results = simulation(NAMM=1, NLOB=1, shocks=2, days=25, seed=100)
+results = simulation(NAMM=1, NLOB=1, shocks=1, days=1, seed=100)
 

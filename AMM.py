@@ -91,7 +91,7 @@ class AMM(Exchange):
     # A positive amount of X means that we sell it to the AMM
     # A negative amount of M returned means that we pay it to the AMM
     # A positive amount of M returned means that we get it from the AMM
-    def trade(self, X):
+    def trade(self, X, record=True):
         orX = X
         self.prices.append(self.sP)
         self.allPrices.append(self.sP)
@@ -120,8 +120,9 @@ class AMM(Exchange):
                     dM = self.__getdMpN__(pN)/(1-self.F)
                     M -= dM
                     self.sP = pN
-                    self.feeGrowthM[inU] += abs(dM*self.F/self.L)
-                    self.marketBuyTransactions.push(X)
+                    if record:
+                        self.feeGrowthM[inU] += abs(dM*self.F/self.L)
+                        self.marketBuyTransactions.push(X)
                     X = 0
                 else: 
                     # Update all returns of user for partial swap
@@ -132,7 +133,7 @@ class AMM(Exchange):
                     
                     # Update liquidity
                     self.sP = pU
-                    if dM > 0:
+                    if dM > 0 and record:
                         self.feeGrowthM[inU] += abs(dM*self.F/self.L)
                         self.marketBuyTransactions.push(dX)
                     self.__setIndex__(inU)
@@ -153,21 +154,27 @@ class AMM(Exchange):
                 if pN >= pL:
                     M -= self.__getdMpN__(pN)
                     self.sP = pN
-                    self.feeGrowthX[inU] += abs(X*self.F/self.L)
-                    self.marketSellTransactions.push(X)
+                    if record:
+                        self.feeGrowthX[inU] += abs(X*self.F/self.L)
+                        self.marketSellTransactions.push(X)
                     X=0
                 else:
                     M -= self.__getdMpN__(pL)
                     dX = self.__getdXpN__(pL)/(1-self.F)
                     X -= dX
                     self.sP = pL
-                    if inU < len(self.nR) and not dX == 0:
+                    if inU < len(self.nR) and not dX == 0 and record:
                         self.feeGrowthX[inU] += abs(dX*self.F/self.L)
                         self.marketSellTransactions.push(dX)
                     self.__setIndex__(inL)
             (inL, inU, pL, pU) = self.__getTickWindow__()
         
-        self.tradePrices.append(M/(orX-X)) if not orX-X == 0 else None
+        if record:
+            self.tradePrices.append(M/(orX-X)) if not orX-X == 0 else None
+            if orX > 0:
+                self.addStatistics(sellVol = orX-X, buyVol = 0)
+            else: 
+                self.addStatistics(sellVol = 0, buyVol = X-orX)
         
         return (X, M)  
         
@@ -176,7 +183,7 @@ class AMM(Exchange):
     # A positive amount of M means that we buy as much X as we can
     # A negative amount of X returned means that we pay it to the AMM
     # A positive amount of X returned means that we get it from the AMM
-    def tradeM(self, M):
+    def tradeM(self, M, record=True):
         orM = M
         self.prices.append(self.sP)
         self.allPrices.append(self.sP)
@@ -208,8 +215,9 @@ class AMM(Exchange):
                     dX = self.__getdXpN__(pN)/(1-self.F)
                     X -= dX
                     self.sP = pN
-                    self.feeGrowthX[inU] += abs(dX*self.F/self.L)
-                    self.marketSellTransactions.push(dX)
+                    if record:
+                        self.feeGrowthX[inU] += abs(dX*self.F/self.L)
+                        self.marketSellTransactions.push(dX)
                 else: 
                     # Update all returns of user for partial swap
                     dX = self.__getdXpN__(pL)/(1-self.F)
@@ -218,7 +226,7 @@ class AMM(Exchange):
                     
                     # Update liquidity
                     self.sP = pL
-                    if dX > 0:
+                    if dX > 0 and record:
                         self.feeGrowthX[inU] += abs(dX*self.F/self.L)
                         self.marketSellTransactions.push(dX)
                     self.__setIndex__(inL)
@@ -240,8 +248,9 @@ class AMM(Exchange):
                     dX = self.__getdXpN__(pN)
                     X -= dX
                     self.sP = pN
-                    self.feeGrowthM[inU] += abs(M*self.F/self.L)
-                    self.marketBuyTransactions.push(-dX)
+                    if record:
+                        self.feeGrowthM[inU] += abs(M*self.F/self.L)
+                        self.marketBuyTransactions.push(-dX)
                     M=0
                 else:
                     dX = self.__getdXpN__(pU)
@@ -249,13 +258,18 @@ class AMM(Exchange):
                     dM = self.__getdMpN__(pU)/(1-self.F)
                     M -= dM
                     self.sP = pU
-                    if inU < len(self.nR) and not dM == 0:
+                    if inU < len(self.nR) and not dM == 0 and record:
                         self.feeGrowthM[inU] += abs(dM*self.F/self.L)
                         self.marketBuyTransactions.push(dX)
                     self.__setIndex__(inU)
             (inL, inU, pL, pU) = self.__getTickWindow__()
         
-        self.tradePrices.append((orM-M)/(X)) if not orM-M == 0 else None
+        if record:
+            self.tradePrices.append((orM-M)/(X)) if not orM-M == 0 else None
+            if orM > 0:
+                self.addStatistics(sellVol = 0, buyVol = X)
+            else: 
+                self.addStatistics(sellVol = X, buyVol = 0)
         
         return (X, M)  
     
@@ -263,13 +277,17 @@ class AMM(Exchange):
     # X < 0: buying from AMM
     # X > 0: Selling to AMM
     # M: Money you get from the AMM
-    def exp(self, X): 
-        p = self.sP
-        L = self.L
-        index = self.index
+    def exp(self, X, p=None): 
+        if not p:
+            p = self.sP
+            L = self.L
+            index = self.index
+        else:
+            (index, _) = self.__getTickWindowDown__(int(np.ceil(p**2)-self.s.minPriceRange))
+            L = round(np.sum(self.dL[:index+1]))
         M = 0
         while X<0 and L>0:
-            (index, pU) = self.__getTickWindowUp__(index)
+            (indexU, pU) = self.__getTickWindowUp__(index)
             pN = 1/(1/p + X/L)
             if pN < pU and pN > 0:
                 M += L*(pN-p)
@@ -280,10 +298,11 @@ class AMM(Exchange):
                 M += L*(pU-p)
                 X -= (1/pU - 1/p)*L
                 p = pU
-                L+= self.dL[index] 
+                L+= self.dL[indexU]
+                index = indexU
         X = X*(1-self.F)
         while X > 0 and L>0:
-            (index, pL) = self.__getTickWindowDown__(index) # Easy fix for the fact that index saved is lower index
+            (indexL, pL) = self.__getTickWindowDown__(index) 
             pN = 1/(1/p + X/L)
             if pN > pL:
                 M -= L*(pN-p)
@@ -299,6 +318,7 @@ class AMM(Exchange):
                 X -= (1/pL - 1/p)*L
                 p = pL
                 L -= self.dL[index]
+                index = indexL
         
         if X < 0:
             return math.inf
@@ -307,8 +327,44 @@ class AMM(Exchange):
         else:
             return M
         
-    # TODO: Check function
+    def expM(self, M, p=None):
+        if not p:
+            p = self.sP
+            L = self.L
+            index = self.index
+        else:
+            (index, _) = self.__getTickWindowDown__(int(np.ceil(p**2)-self.s.minPriceRange))
+            L = round(np.sum(self.dL[:index+1]))
+            
+        X = 0
+        M = M*(1-self.F)
+        (inU, pU) = self.__getTickWindowUp__(index)
+        while M > 0 and (inU < len(self.nR) or L>0):
+            if L == 0 and index == inU:
+                L += self.dL[inU]
+                index = inU
+                break
+            elif L == 0:
+                M = 0
+                break
+            pN = M/L + p
+            if pN < pU and pN > 0:
+                X -= (1/pN - 1/p)*L
+                M = 0
+            else:
+                X -= (1/pU - 1/p)*L
+                M -= L*(pU-p)
+                p = pU
+                L += self.dL[inU]
+                index = inU
+                (inU, pU) = self.__getTickWindowUp__(index)
+        
+        return X
+    
     def getPrice(self, assets, index = None, sP = None, L = None):
+        if assets == 0:
+            return self.sP
+        
         if not index:
             index = self.index
         if not sP:
@@ -328,15 +384,15 @@ class AMM(Exchange):
                 L = round(L-self.dL[index])
                 index = inL
             else:
-                pN = self.__getPricedX__(assets*(1-self.F)) if inU < len(self.nR) else 0
+                pN = 1/(1/sP + assets*(1-self.F)/L)
                 
                 if pN >= pL:
                     return pN
                 else:
-                    assets -= self.__getdXpN__(pL)/(1-self.F)
+                    assets -= (1/pL - 1/sP)*L
                     sP = pL
-                    index = inL
                     L = round(L-self.dL[index])
+                    index = inL
             (inL, pL) = self.__getTickWindowDown__(index)
             
         if assets > 0:
@@ -351,11 +407,14 @@ class AMM(Exchange):
                 L += self.dL[pU]
                 index = pU
             else:
-                pN = self.__getPricedX__(assets) if index > -1 else math.inf
+                if (1/pU -1/sP)*L > assets:
+                    pN = pU+1
+                else:
+                    pN = 1/(1/sP + assets/L)
                 if pN <= pU:
                     return pN
                 else: 
-                    assets -= self.__getdXpN__(pU)
+                    assets -= (1/pU - 1/sP)*L
                     sP = pU
                     L += self.dL[inU]
                     index = inU
@@ -363,19 +422,18 @@ class AMM(Exchange):
         
         return math.sqrt(self.s.maxPriceRange)
     
-    # TODO: check function
-    def getExpLiq(self, assets, money, lower, upper):
-        f = self.F
+    def getExpLiq(self, assets, money, lower, upper, trading):
         index = self.index
         sP = self.sP
-        self.F = 0
-        (_, _, C) = self.add(assets, money, lower, upper)
+        (_, _, C) = self.add(assets, money, lower, upper, record = False)
         L = C.L
+        fX = C.fX
+        fM = C.fM
+        expP = self.getPrice(trading)
         C.retrieve()
-        self.F = f
         self.sP = sP
         self.__setIndex__(index)
-        return L
+        return (L, fX, fM, expP)
     
     def __getTickWindow__(self):
         (inU, pU) = self.__getTickWindowUp__()
@@ -394,20 +452,24 @@ class AMM(Exchange):
         return (inU, pu)
     
     # Returns pair: index next lowerbound, sqrt price lower bound
-    def __getTickWindowDown__(self, inL = None):
-        if not inL:
-            inL = self.index
+    # Returns -1 when there is no next lower bound
+    def __getTickWindowDown__(self, index = None):
+        if index == None:
+            index = self.index
+        
+        inL = index
+        
         if inL == 0:
-            return (0, 0)
+            return (-1, math.sqrt(self.s.minPriceRange))
         
         inL -=1
         while inL >= 0 and self.nR[inL] == 0:
             inL -= 1
         
-        if self.index == len(self.nR)-1:
+        if index == len(self.nR)-1:
             return (inL, math.inf)
         else:
-            return (inL, math.sqrt(self.index+self.s.minPriceRange))
+            return (inL, math.sqrt(index+self.s.minPriceRange))
     
     def __getPricedX__(self, dX): return 1/(1/self.sP + dX/self.L)
     def __getPricedM__(self, dM): return dM/self.L + self.sP
@@ -416,7 +478,7 @@ class AMM(Exchange):
     
     # In this simulation we assume that we can only add X or M, not both
     # Return X, M, L
-    def add(self, X, M, a, b, kind=None): 
+    def add(self, X, M, a, b, kind=None, record=True): 
         # Compute some prices we need
         pa = math.sqrt(a) # Get sqrt(pa)
         pb = math.sqrt(b) # Get sqrt(pb)
@@ -443,10 +505,10 @@ class AMM(Exchange):
                 return (X, M, Contract(pa, pb, 0, fX, fM, self, kind))
             if self.sP == pp and X == 0:
                 self.__setIndex__(inU)
-                return self.add(X, M, a, b, kind)
+                return self.add(X, M, a, b, kind, record)
             if self.sP == pm and M == 0:
                 self.__setIndex__(inL)
-                return self.add(X, M, a, b, kind)
+                return self.add(X, M, a, b, kind, record)
                 
         R = M/X if X else math.inf
         Rp = self.__Rp__(X, M, pp)
@@ -464,7 +526,7 @@ class AMM(Exchange):
             c = self.L*pa-lF*self.sP-M
             sp1 = (-b + math.sqrt(b*b-4*a*c))/(2*a)
             dM = lF*(sp1 - self.sP)/(1-self.F)
-            (dX, dM2) = self.tradeM(dM) # Already takes in fee
+            (dX, dM2) = self.tradeM(dM, record) # Already takes in fee
             X += dX
             M -= dM + dM2
         # Case in which we have too much X and the border isn't crossed
@@ -474,27 +536,27 @@ class AMM(Exchange):
             c = lF*pa - self.L*self.sP-M # Different than source (derived)
             sp1 = (-b + math.sqrt(b*b-4*a*c))/(2*a)
             dX = lF*(1/sp1 - 1/self.sP)
-            (dX2, dM) = self.trade(dX)
+            (dX2, dM) = self.trade(dX, record)
             M += dM
             X -= dX + dX2
         # Case in which we have too little X and the border is crossed
         elif R > rc and Rp >= rp:
             dM = self.__getdMpN__(pp)/(1-self.F)
-            (dX, dM2) = self.tradeM(dM)
+            (dX, dM2) = self.tradeM(dM, record)
             X += dX
             M -= dM + dM2 
             self.sP = pp
             self.__setIndex__(inU)
-            return self.add(X, M, a, b, kind)
+            return self.add(X, M, a, b, kind, record)
         # Case in which we have too much X and the border is crossed
         elif R < rc and Rm < rm:
             dX = self.__getdXpN__(pm)/(1-self.F)
-            (dX2, dM) = self.trade(dX)
+            (dX2, dM) = self.trade(dX, record)
             M += dM
             X = X - dX + dX2
             self.sP = pm
             self.__setIndex__(inL)
-            return self.add(X, M, a, b, kind)
+            return self.add(X, M, a, b, kind, record)
         
         # Compute the liquidity and left over assets/money
         Lx = round(X*self.sP*pb/(pb-self.sP))
@@ -583,6 +645,40 @@ class AMM(Exchange):
             M += self.feeGrowthM[b - self.s.minPriceRange]
             b -=1
         return (X, M)
+    
+    def getLiquidityDown(self):
+        index = self.index
+        sP = self.sP
+        L = self.L
+        lower = math.sqrt(self.s.minPriceRange)
+        (inL, pL) = self.__getTickWindowDown__(index)
+        
+        X = 0
+        
+        while sP > lower and (L > 0 or sP == pL) and index>=0:
+            X += (1/pL - 1/sP)*L
+            L = round(L-self.dL[index])
+            index = inL
+            sP = pL
+            (inL, pL) = self.__getTickWindowDown__(index)
+            
+        return X
+    
+    def getLiquidityUp(self):
+        index = self.index
+        sP = self.sP
+        L = self.L
+        upper = math.sqrt(self.s.maxPriceRange)
+        (inU, pU) = self.__getTickWindowUp__(index)
+        
+        X = 0
+        while sP < upper and (L > 0 or sP == pU):
+            X -= (1/pU - 1/sP)*L
+            index = inU
+            L = round(L+self.dL[index])
+            sP = pU
+            (inU, pU) = self.__getTickWindowUp__(index)
+        return X
 
 class Contract(object):
     def __init__(self, pa, pb, L, fX, fM, amm, kind):
@@ -659,52 +755,3 @@ class SellRangeOrder(Contract):
         (asset, money2) = self.amm.trade(asset+amount)
         money += money2
         return (asset, money, filled)
-        
-        
-# # Buy comparison. Price goes to 1020. Stepping into the pool is better option
-# amm = AMM(simpy.Environment(), 1, Settings())
-# (X, M, contract) = amm.add(0, 1020, 999, 1020)
-# for i in range(400):
-#     amm.trade(0.5)
-#     amm.trade(-0.75)
-# #amm.sP = math.sqrt(1021)
-# print(amm.sP*amm.sP)
-# (X, M) = amm.retrieve(contract)
-# print(1020/(amm.__tradeM__(M)+X))
-
-# amm = AMM(simpy.Environment(), 1, Settings())
-# X = amm.__tradeM__(1020)
-# print(1020/X)
-
-# # Sell comparison. Price goes to 1020. 
-# amm = AMM(simpy.Environment(), 1, Settings())
-# (X, M, contract) = amm.add(1, 0, 1018, 1019)
-# for i in range(400):
-#     amm.trade(0.5)
-#     amm.trade(-0.75)
-# plt.scatter(range(len(amm.tradePrices)), amm.tradePrices)
-# plt.show()
-# listEven = amm.tradePrices[::2]
-# listOdd = amm.tradePrices[1::2]
-# plt.scatter(range(len(listOdd)), [a-b for a,b in zip(listOdd, listEven)])
-# plt.show()
-# print(amm.sP*amm.sP)
-# (X, M) = amm.retrieve(contract)
-# (X, M2) = amm.trade(X)
-# print((M+M2)/1)
-
-# amm = AMM(simpy.Environment(), 1, Settings())
-# amm.sP = math.sqrt(1020)
-# print(amm.trade(1)[1]/1)
-
-# # Sell comparison. Price goes to 1020. 
-# numTrades = 10000
-# amm = AMM(simpy.Environment(), 1, Settings())
-# for i in range(numTrades):
-#     tr = random.randint(-3, 3)
-#     while tr == 0:
-#         tr = random.randint(-3, 3)
-#     amm.trade(tr)
-# plt.scatter(range(numTrades), [i*i for i in amm.allPrices])
-# plt.show()
-
