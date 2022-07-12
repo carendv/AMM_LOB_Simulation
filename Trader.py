@@ -15,7 +15,6 @@ from matplotlib import pyplot as plt
 random.seed(10)
     
 def trade(env, name, exchange, s, o, r):
-    #print(name)
     guessedTime = 0
     now = env.now
     spot = exchange.spot()
@@ -263,8 +262,10 @@ def bestRange(amm, buy, belP, spot):
     # Believed price is higher than market, we want to sell
     # Sell limit at correct price
     elif belP > spot and not buy:
-        lower = math.ceil(spot) #TODO: Step in from point of no liquidity
+        lower = amm.getLiquidityStart(belP)
         upper = amm.s.maxPriceRange
+        if upper == lower:
+            lower -= 1
         kind = "L-Sell-A"
     # Believed price is lower than market, we want to sell
     # Sell limit undercut
@@ -277,8 +278,11 @@ def bestRange(amm, buy, belP, spot):
     # Believed price is lower than market, we want to buy
     # Buy limit at correct price
     elif belP < spot and buy:
+        upper = amm.getLiquidityStart(belP)
         lower = amm.s.minPriceRange
-        upper = math.floor(spot) #TODO: Step in from point of no liquidity
+        if upper == lower:
+            upper += 1
+        
         kind = "L-Buy-A"
     else:
         lower = int(min(np.floor(np.percentile(amm.prices, 5)**2), np.floor(spot)-2))

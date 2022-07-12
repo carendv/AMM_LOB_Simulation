@@ -197,5 +197,5 @@ def simulation(NAMM = 1, NLOB = 1, shocks=0, days=3, seed=100):
 
     return outputs
 
-results = simulation(NAMM=1, NLOB=1, shocks=1, days=5, seed=100)
+results = simulation(NAMM=1, NLOB=1, shocks=1, days=3, seed=100)
 

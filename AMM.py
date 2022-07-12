@@ -682,6 +682,29 @@ class AMM(Exchange):
             sP = pU
             (inU, pU) = self.__getTickWindowUp__(index)
         return X
+    
+        
+    # Computes the point from there is no liquidity 
+    # between current price and this price
+    # Returns price when there is liquidity over whole range
+    def getLiquidityStart(self, p2):
+        dLCum = np.cumsum(self.dL)
+        spot = self.spot()
+        if p2 > spot:
+            lower = int(np.ceil(self.spot()))-self.s.minPriceRange
+            upper = int(np.floor(p2))-self.s.minPriceRange
+        else:
+            lower = int(np.ceil(p2))-self.s.minPriceRange
+            upper = int(np.floor(self.spot()))-self.s.minPriceRange
+            
+        try:
+            index = np.where(dLCum[lower:upper+1]==0)[0][0]+lower
+        except:
+            if p2 > spot:
+                index = int(np.floor(p2))-self.s.minPriceRange
+            else:
+                index = int(np.ceil(p2))-self.s.minPriceRange
+        return index+self.s.minPriceRange
 
 class Contract(object):
     def __init__(self, pa, pb, L, fX, fM, amm, kind):
@@ -733,7 +756,7 @@ class Contract(object):
         else:
             filled = math.nan
         self.L = 0
-        return (asset, money, filled)
+        return (asset, money, filled)      
     
 class BuyRangeOrder(Contract):
     def __init__(self, pa, pb, L, fX, fM, amm):
