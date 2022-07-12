@@ -41,8 +41,10 @@ def trade(env, name, exchange, s, o, r):
 
     if isinstance(exchange, AMM) and ret:
         (time, amount, lower, upper, kindOrder, changed, guessedTime) = ret
+        buy = amount < 0
     elif isinstance(exchange, LOB) and ret:
         (time, amount, p, kindOrder, changed, guessedTime) = ret
+        buy = amount < 0
     else:
         #TODO: shuffle the order at which conditions are looked at.
         if buy and probOrder(belP, ask) > randomDraw: 
@@ -84,29 +86,44 @@ def trade(env, name, exchange, s, o, r):
         notEnded = True
         while time > 0 and notEnded:
             yield env.timeout(min(60, time))
-            time -= 60
+            time -= min(60, time)
             # You can get what you want
-            if buy and contract.expX(money) + assets > -amount:
-                notEnded = False
-            elif not buy and contract.expM(assets) + money > amount*belP:
-                notEnded = False
+            if buy and (contract.expX(money) + assets > -amount or time == 0):
+                with exchange.capacity.request() as request:
+                    yield request
+                    if contract.expX(money) + assets > -amount or time == 0:
+                        (assets, money, completionPer, filled) = retrieveFunds(amount, contract, name, belP, assets, money)
+                        notEnded = False
+            elif not buy and (contract.expM(assets) + money > amount*belP or time == 0):
+                with exchange.capacity.request() as request:
+                    yield request
+                    if contract.expM(assets) + money > amount*belP or time == 0:
+                        (assets, money, completionPer, filled) = retrieveFunds(amount, contract, name, belP, assets, money)
+                        notEnded = False
     else:
         with exchange.capacity.request() as request:
             yield request
             (assets, money, contract) = exchange.add(amount, p, name)
             o.strats.append((kindOrder, informed, changed, p))
         yield contract.succes | env.timeout(time)
-    with exchange.capacity.request() as request:
-        yield request
-        if amount < 0:
-            (assets2, money, filled) = contract.retrieve(money, name)
-            assets += assets2
-            completionPer = -assets/amount
-        else:
-            (assets, money2, filled) = contract.retrieve(assets, name)
-            money += money2
-            completionPer = money/(amount*belP)
+        with exchange.capacity.request() as request:
+            yield request
+            (assets, money, completionPer, filled) = retrieveFunds(amount, contract, name, belP)
+
     o.orders.append((name, spot, belP, amount, time, guessedTime, env.now-now, assets, money, completionPer, filled))
+
+def retrieveFunds(amount, contract, name, belP, assets=0, money=0):
+    if amount < 0:
+        (assets2, money, filled) = contract.retrieve(money, name)
+        assets += assets2
+        completionPer = -assets/amount
+    else:
+        (assets, money2, filled) = contract.retrieve(assets, name)
+        money += money2
+        completionPer = money/(amount*belP)
+    return (assets, money, completionPer, filled)
+        
+    
 
 def forcedLiquidityOrderAMM(buy, belP, amm, s):
     (lower, upper, kindOrder) = bestRange(amm, buy, belP, amm.spot())
