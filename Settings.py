@@ -33,7 +33,6 @@ class Settings(object):
         self.liqP = 1
         self.liqMin = 4+(1-self.liqP)*6
         self.liqMax = 8+(1-self.liqP)*12
-        self.initTimePerVol = ((self.liqMin+self.liqMax)/2) / (1/(self.NAMM+self.NLOB) * 0.5 * 0.5 * (self.transSize[0]+self.transSize[1])/2)
         self.lookNTransactionsBack = 100
         self.AMMmax = 1100 # The maximal price in AMM
         self.minPriceRange = minPriceRange
