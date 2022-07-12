@@ -86,7 +86,9 @@ def trade(env, name, exchange, s, o, r):
             yield env.timeout(min(60, time))
             time -= 60
             # You can get what you want
-            if contract.expX() + assets > -amount:
+            if buy and contract.expX(money) + assets > -amount:
+                notEnded = False
+            elif not buy and contract.expM(assets) + money > amount*belP:
                 notEnded = False
     else:
         with exchange.capacity.request() as request:
@@ -326,6 +328,7 @@ def randomCheckOrderAMM(exchange, belP, s):
 
 def randomCheckOrderLOB(exchange, belP, s):
     lst_condition_result = [(exchange.getLiquidity(900) < 40000, True), (exchange.getLiquidity(1200) < 40000, False)]
+    lst_condition_result = [(exchange.getLiquidityDown() < 40000, True), (exchange.getLiquidityUp() < 40000, False)]
     random.shuffle(lst_condition_result)
     
     for condition, param in lst_condition_result:

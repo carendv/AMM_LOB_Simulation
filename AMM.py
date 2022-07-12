@@ -696,13 +696,13 @@ class Contract(object):
         self.amm = amm
         self.kind = kind
         
-    def expM(self):
+    def expM(self, assets = 0):
         (X, M) = self.__expRet__()
-        return M + self.amm.exp(X)
+        return M + self.amm.exp(X+assets)
     
-    def expX(self):
+    def expX(self, money = 0):
         (X, M) = self.__expRet__()
-        return X + M/self.amm.spot()
+        return X + self.amm.expM(M+money)
     
     def __expRet__(self):
         (fXn, fMn) = self.amm.__retrieveFeesPerUnitInRange__(self.pa, self.pb)
