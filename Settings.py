@@ -33,19 +33,18 @@ class Settings(object):
         self.liqP = 1
         self.liqMin = 4+(1-self.liqP)*6
         self.liqMax = 8+(1-self.liqP)*12
-        self.initTimePerVol = ((self.liqMin+self.liqMax)/2) / (1/(self.NAMM+self.NLOB) * 0.5 * 0.5 * (self.transSize[0]+self.transSize[1])/2)
         self.lookNTransactionsBack = 100
         self.AMMmax = 1100 # The maximal price in AMM
         self.minPriceRange = minPriceRange
         self.maxPriceRange = 1200
-        # The minimal price in AMM, this function is yet to be proven to satisfy that we have 10X=Y
+        self.minLiquidity = (self.transSize[0]+self.transSize[1]) /2 * 10
         
         # Variables w.r.t. duration of simulation
         self.days = days
         self.totTime = self.days*60*60*8
         
         # Variables w.r.t. informed traders
-        self.infP = 0.1
+        self.infP = 0.2
         self.minInfP = self.infP
         self.maxInfP = 0.75
         

@@ -29,6 +29,9 @@ class AMM(Exchange):
         # Compute lower bound of initial range order given initial sell and pool liquidity
         a = round( ((s.trueP*(s.initLiqSell+self.L/pb) - s.initLiqBuy*s.trueP)/self.L)**2 )
         
+        # Make sure initial liquidity slowly disappears from market.
+        env.process(initRangeOrder(Contract(math.sqrt(a), pb, self.L, 0, 0, self, None), s).start())
+        
         # Update price for rounding errors
         self.sP = math.sqrt( (s.initLiqBuy*s.trueP + self.L*math.sqrt(a))/(s.initLiqSell + self.L/pb) )
         
@@ -141,7 +144,7 @@ class AMM(Exchange):
         
         # If the trade crosses it's lower price (only possible when selling),
         # split up the trade to go to the crossing
-        while X > 0 and (self.index >= 0 or self.L>0):
+        while X > 0 and (self.index > 0 or self.L>0):
             if self.sP > pL and self.L == 0:
                 break
             elif self.sP == pL and self.index == 0:
@@ -460,10 +463,10 @@ class AMM(Exchange):
         inL = index
         
         if inL == 0:
-            return (-1, math.sqrt(self.s.minPriceRange))
+            return (0, math.sqrt(self.s.minPriceRange))
         
         inL -=1
-        while inL >= 0 and self.nR[inL] == 0:
+        while inL > 0 and self.nR[inL] == 0:
             inL -= 1
         
         if index == len(self.nR)-1:
@@ -679,6 +682,29 @@ class AMM(Exchange):
             sP = pU
             (inU, pU) = self.__getTickWindowUp__(index)
         return X
+    
+        
+    # Computes the point from there is no liquidity 
+    # between current price and this price
+    # Returns price when there is liquidity over whole range
+    def getLiquidityStart(self, p2):
+        dLCum = np.cumsum(self.dL)
+        spot = self.spot()
+        if p2 > spot:
+            lower = int(np.ceil(self.spot()))-self.s.minPriceRange
+            upper = int(np.floor(p2))-self.s.minPriceRange
+        else:
+            lower = int(np.ceil(p2))-self.s.minPriceRange
+            upper = int(np.floor(self.spot()))-self.s.minPriceRange
+            
+        try:
+            index = np.where(dLCum[lower:upper+1]==0)[0][0]+lower
+        except:
+            if p2 > spot:
+                index = int(np.floor(p2))-self.s.minPriceRange
+            else:
+                index = int(np.ceil(p2))-self.s.minPriceRange
+        return index+self.s.minPriceRange
 
 class Contract(object):
     def __init__(self, pa, pb, L, fX, fM, amm, kind):
@@ -693,13 +719,13 @@ class Contract(object):
         self.amm = amm
         self.kind = kind
         
-    def expM(self):
+    def expM(self, assets = 0):
         (X, M) = self.__expRet__()
-        return M + self.amm.exp(X)
+        return M + self.amm.exp(X+assets)
     
-    def expX(self):
+    def expX(self, money = 0):
         (X, M) = self.__expRet__()
-        return X + M/self.amm.spot()
+        return X + self.amm.expM(M+money)
     
     def __expRet__(self):
         (fXn, fMn) = self.amm.__retrieveFeesPerUnitInRange__(self.pa, self.pb)
@@ -730,7 +756,7 @@ class Contract(object):
         else:
             filled = math.nan
         self.L = 0
-        return (asset, money, filled)
+        return (asset, money, filled)      
     
 class BuyRangeOrder(Contract):
     def __init__(self, pa, pb, L, fX, fM, amm):
@@ -755,3 +781,38 @@ class SellRangeOrder(Contract):
         (asset, money2) = self.amm.trade(asset+amount)
         money += money2
         return (asset, money, filled)
+
+class initRangeOrder():
+    def __init__(self, contract, settings):
+        self.c = contract
+        self.lower = self.c.a
+        self.upper = self.c.b
+        self.amm = self.c.amm
+        self.s = settings
+        self.end = settings.shockWait
+        self.initL = self.c.L
+    
+    def start(self):
+        while self.c.L > 0.01*self.initL:
+            yield self.amm.env.timeout(100)
+            with self.amm.capacity.request() as request:
+                yield request
+                L = self.c.L
+                Lshould = self.initL*(self.end-self.amm.env.now)/self.end
+                per = max(Lshould/L, 0.01)
+                (assets, money, _) = self.c.retrieve()
+                assets = max(assets*per,0)
+                money = max(money*per,0)
+                if assets > 0 and money > 0:
+                    (_, _, self.c) = self.amm.add(assets, money, self.lower, self.upper)
+                else: 
+                    self.c.L = 0
+
+
+
+
+
+
+
+
+

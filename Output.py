@@ -21,13 +21,17 @@ class ExchangeStatistics(object):
         self.buyVol = [0]
         self.spread = []
         self.informedProb = []
+        self.availableBuy = []
+        self.availableSell = []
     
-    def add(self, price = None, time = None, sellVol = 0, buyVol=0, spread = None, informedProb = None):
+    def add(self, price, time, sellVol, buyVol, spread, informedProb, avBuy, avSell):
         self.prices.append(price)
         self.times.append(time)
         self.sellVol.append(self.sellVol[-1]+sellVol)
         self.buyVol.append(self.buyVol[-1]+buyVol)
         self.spread.append(spread)
         self.informedProb.append(informedProb)
+        self.availableBuy.append(avBuy)
+        self.availableSell.append(avSell)
         
         

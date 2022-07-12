@@ -29,15 +29,21 @@ class Exchange(object):
                             sellVol = sellVol, \
                             buyVol = buyVol, \
                             spread = self.bestAskPrice() - self.bestBidPrice(), \
-                            informedProb = self.s.infP)
+                            informedProb = self.s.infP,\
+                            avSell = self.getLiquidityDown(),\
+                            avBuy = self.getLiquidityUp())
 
 class Queue():
     def __init__(self, env, s):
+        # self.liqMax = 8+(1-self.liqP)*12
+        # self.initTimePerVol = ((self.liqMin+self.liqMax)/2) / (0.5 * 0.5 * (self.transSize[0]+self.transSize[1])/2)
         self.env = env
         self.queue = []
-        initTime = -(s.lookNTransactionsBack-1)*s.initTimePerVol
+        avgTimeStep = (s.liqMin+s.liqMax)/2/4 #Divide by 4, since it can be sell/buy and market/liquidity order.
+        avgSizeOrder = (s.transSize[0]+s.transSize[1])/2
+        initTime = -(s.lookNTransactionsBack-1)*avgTimeStep
         for i in range(s.lookNTransactionsBack):
-            self.queue.append((initTime+i*s.initTimePerVol, 1))
+            self.queue.append((initTime+i*avgTimeStep, avgSizeOrder))
     
     def getLiqSec(self):
         totVol = sum([x[1] for x in self.queue])
