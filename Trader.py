@@ -327,7 +327,6 @@ def randomCheckOrderAMM(exchange, belP, s):
             return forcedLiquidityOrderAMM(param, belP, exchange, s)
 
 def randomCheckOrderLOB(exchange, belP, s):
-    lst_condition_result = [(exchange.getLiquidity(900) < 40000, True), (exchange.getLiquidity(1200) < 40000, False)]
     lst_condition_result = [(exchange.getLiquidityDown() < 40000, True), (exchange.getLiquidityUp() < 40000, False)]
     random.shuffle(lst_condition_result)
     

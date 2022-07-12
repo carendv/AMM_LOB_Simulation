@@ -23,20 +23,27 @@ class LOB(Exchange):
         self.orders[getIndex(998)] = initBid
     
     def __getliquidity__(self):
+        totalAsked = self.getLiquidityUp()
+        totalSold = self.getLiquidityDown()
+        return (totalAsked, totalSold)
+    
+    # Get all liquidity that makes price go down, or all the assets you can sell
+    def getLiquidityDown(self):
         bid = self.bestBid
         totalAsked = 0
         while bid:
             totalAsked += bid.assets
             bid = bid.next
-        
+        return totalAsked
+    
+    def getLiquidityUp(self):
         ask = self.bestAsk
         totalSold = 0
         while ask:
             totalSold += ask.assets
             ask = ask.next
-        return (totalAsked, totalSold)
+        return totalSold
     
-    # TODO: Test this function
     def getLiquidity(self, price):
         liq = 0
         if self.bestAsk and price >= self.bestAsk.price:
