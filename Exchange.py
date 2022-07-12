@@ -29,7 +29,9 @@ class Exchange(object):
                             sellVol = sellVol, \
                             buyVol = buyVol, \
                             spread = self.bestAskPrice() - self.bestBidPrice(), \
-                            informedProb = self.s.infP)
+                            informedProb = self.s.infP,\
+                            avSell = self.getLiquidityDown(),\
+                            avBuy = self.getLiquidityUp())
 
 class Queue():
     def __init__(self, env, s):
