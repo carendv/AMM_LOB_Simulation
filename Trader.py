@@ -15,7 +15,7 @@ from matplotlib import pyplot as plt
 random.seed(10)
     
 def trade(env, name, exchange, s, o, r):
-    print(name)
+    #print(name)
     guessedTime = 0
     now = env.now
     spot = exchange.spot()
@@ -142,13 +142,7 @@ def freeOrderAMM(buy, kind, belP, s, env, exchange):
         (buyQuan, sellQuan) = exchange.getBuySellQuantity(time)
         
         # Alter these numbers toward the direction of the expected price.
-        # For instance, if we expect the price to increase by 10%, there should
-        # be 10% more buy orders. However, we take the average of this and the 
-        # current buy/sell quantity, since the history also takes price increases
-        # into account.
-        totQuan = buyQuan + sellQuan
-        sellQuan = sellQuan/2 + totQuan/(1 + belP/spot)/2
-        buyQuan = totQuan - sellQuan
+        (buyQuan, sellQuan) = updateBuySellQuantity(buyQuan, sellQuan, belP, spot)
 
         # In the AMM, we compute the expected price after waiting.
         # If this is higher than our range, we have succesfully traded within the time
@@ -161,31 +155,37 @@ def freeOrderAMM(buy, kind, belP, s, env, exchange):
         
         assets = max(amount, 0)
         money = max(-belP*amount, 0)
-        with exchange.capacity.request() as request:
-            yield request
-            (L, fX, fM, expP) = exchange.getExpLiq(assets, money, lower, upper, sellQuan-buyQuan)
         
-        sL = math.sqrt(lower)
-        sU = math.sqrt(upper)
+        checkpoints = [0.01, 0.05, 0.1, 0.25, 0.5, 1]
         
-        # If price not past range, compute the total price of this range order
-        expAss = L*(sU-expP)/(sU*expP) + fX/env.now*time*L
-        expMon = L*(expP-sL) + fM/env.now*time*L
-        
-        # You expect the range order to succeed if price is past limit
-        if buy and expP <= sL:
-            limit = True
-        elif not buy and expP >= sU:
-            limit = True
-        elif buy and expP > sU:
-            limit = False
-        elif not buy and expP < sL:
-            limit = False
-        elif buy and expAss+exchange.expM(expMon, expP) > exchange.expM(-belP*amount):
-            limit = True
-        elif not buy and expMon+exchange.exp(expAss, expP) > exchange.exp(amount):
-            limit = True
-
+        for i in checkpoints:
+            with exchange.capacity.request() as request:
+                yield request
+                (L, fX, fM, expP) = exchange.getExpLiq(assets, money, lower, upper, (sellQuan-buyQuan)*i)
+            
+            sL = math.sqrt(lower)
+            sU = math.sqrt(upper)
+            
+            # If price not past range, compute the total price of this range order
+            expAss = L*(sU-expP)/(sU*expP) + fX/env.now*time*L*i
+            expMon = L*(expP-sL) + fM/env.now*time*L*i
+            
+            # You expect the range order to succeed if price is past limit
+            if buy and expP <= sL:
+                limit = True
+            elif not buy and expP >= sU:
+                limit = True
+            elif buy and expP > sU:
+                limit = False
+            elif not buy and expP < sL:
+                limit = False
+            elif buy and expAss+exchange.expM(expMon, expP) > exchange.expM(-belP*amount):
+                limit = True
+            elif not buy and expMon+exchange.exp(expAss, expP) > exchange.exp(amount):
+                limit = True
+                
+            if limit:
+                break
         
         if not limit:
             time = 0
@@ -215,13 +215,7 @@ def freeOrderLOB(buy, kind, belP, s, env, exchange):
         (buyQuan, sellQuan) = exchange.getBuySellQuantity(time)
         
         # Alter these numbers toward the direction of the expected price.
-        # For instance, if we expect the price to increase by 10%, there should
-        # be 10% more buy orders. However, we take the average of this and the 
-        # current buy/sell quantity, since the history also takes price increases
-        # into account.
-        totQuan = buyQuan + sellQuan
-        sellQuan = sellQuan/2 + totQuan/(1 + belP/spot)/2
-        buyQuan = totQuan - sellQuan
+        (buyQuan, sellQuan) = updateBuySellQuantity(buyQuan, sellQuan, belP, spot)
     
         # For the AMM/LOB the decision of taking the limit/range order differs.
         # In the LOB, we look at two things: 
@@ -350,3 +344,12 @@ def randomCheckOrderLOB(exchange, belP, s):
     for condition, param in lst_condition_result:
         if condition:
             return forcedLiquidityOrderLOB(param, belP, exchange, s)
+
+def updateBuySellQuantity(buyQuan, sellQuan, belP, spot):
+    totQuan = buyQuan + sellQuan
+    p = belP/spot
+    weight = (1+abs(1-p))/2
+    sellQuan = sellQuan*(1-weight) + totQuan*p/(1 + belP/spot)*weight
+    buyQuan = totQuan - sellQuan
+    return (buyQuan, sellQuan)
+    
