@@ -37,7 +37,7 @@ class Settings(object):
         self.AMMmax = 1100 # The maximal price in AMM
         self.minPriceRange = minPriceRange
         self.maxPriceRange = 1200
-        # The minimal price in AMM, this function is yet to be proven to satisfy that we have 10X=Y
+        self.minLiquidity = (self.transSize[0]+self.transSize[1]) /2 * 10
         
         # Variables w.r.t. duration of simulation
         self.days = days

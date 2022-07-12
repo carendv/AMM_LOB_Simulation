@@ -330,7 +330,7 @@ def probOrder(belP, marketPrice):
     return 1/(1+np.e**(-(marketPrice-belP)/4))
 
 def randomCheckOrderAMM(exchange, belP, s):
-    lst_condition_result = [(exchange.getLiquidityDown() < 40000, True), (exchange.getLiquidityUp() < 40000, False)]
+    lst_condition_result = [(exchange.getLiquidityDown() < s.minLiquidity, True), (exchange.getLiquidityUp() < s.minLiquidity, False)]
     random.shuffle(lst_condition_result)
     
     for condition, param in lst_condition_result:
@@ -338,7 +338,7 @@ def randomCheckOrderAMM(exchange, belP, s):
             return forcedLiquidityOrderAMM(param, belP, exchange, s)
 
 def randomCheckOrderLOB(exchange, belP, s):
-    lst_condition_result = [(exchange.getLiquidityDown() < 40000, True), (exchange.getLiquidityUp() < 40000, False)]
+    lst_condition_result = [(exchange.getLiquidityDown() < s.minLiquidity, True), (exchange.getLiquidityUp() < s.minLiquidity, False)]
     random.shuffle(lst_condition_result)
     
     for condition, param in lst_condition_result:
