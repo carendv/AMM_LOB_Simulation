@@ -134,7 +134,7 @@ def visualizeResults(results):
     ############################# 
     #(name, spot, belP, amount, time, guessedTime, env.now-now, assets, money, completionPer, filled)
     orders = pd.DataFrame(results.orders, columns=["Name", "Spot", "belP", "Amount", \
-                                        "Start", "GuessedTime", "ActualTime", "Assets", \
+                                        "Time", "GuessedTime", "ActualTime", "Assets", \
                                         "Money", "CompletionPer", "Filled"])
     
                 
