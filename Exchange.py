@@ -29,6 +29,7 @@ class Exchange(object):
                             sellVol = sellVol, \
                             buyVol = buyVol, \
                             spread = self.bestAskPrice() - self.bestBidPrice(), \
+                            bigSpread = self.__bigSpread__(),\
                             informedProb = self.s.infP,\
                             avSell = self.getLiquidityDown(),\
                             avBuy = self.getLiquidityUp())

@@ -88,6 +88,14 @@ class AMM(Exchange):
     def bestAskPrice(self):
         return self.exp(-1)
     
+    def __bigSpread__(self):
+        X = 1000
+        MBid = self.exp(X)
+        MAsk = self.exp(-X)
+        bid = max(MBid/X, self.s.minPriceRange)
+        ask = min(MAsk/X, self.s.maxPriceRange)
+        return ask-bid
+    
     
     # Trade X for M, as seen from the AMM. This means:
     # A negative amount of X means that we buy it from the AMM

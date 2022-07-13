@@ -77,6 +77,26 @@ class LOB(Exchange):
             return self.bestAsk.price
         return self.s.maxPriceRange
     
+    def __bigSpread__(self):
+        X = 1000
+        (XAsk, MAsk) = self.__expMon__(self.bestAsk, X)
+        (XBid, MBid) = self.__expMon__(self.bestBid, X)
+        ask = MAsk/X if XAsk == 0 else self.s.maxPriceRange
+        bid = MBid/X if XBid == 0 else self.s.minPriceRange
+        return ask-bid
+    
+    def __expMon__(self, order, X):
+        M = 0
+        while order.next and X>0:
+            if order.assets > X:
+                M += X*order.price
+                X = 0
+            else:
+                M += order.assets*order.price
+                X -= order.assets
+                order = order.next
+        return (X, M)
+    
     def add(self, assets, price, name=-1): #Name temporarily
         # Sell limit order
         if assets > 0:
