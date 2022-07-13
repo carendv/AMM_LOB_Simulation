@@ -83,20 +83,20 @@ def trade(env, name, exchange, s, o, r):
             (assets, money, contract) = exchange.add(assets, money, lower, upper, kind)
             o.strats.append((kindOrder, informed, changed, lower, upper))
         notEnded = True
-        while time > 0 and notEnded:
-            yield env.timeout(min(60, time))
-            time -= min(60, time)
+        endTime = now + time
+        while endTime >= env.now and notEnded:
+            yield env.timeout(min(60, endTime-env.now))
             # You can get what you want
-            if buy and (contract.expX(money) + assets > -amount or time == 0):
+            if buy and (contract.expX(money) + assets > -amount or endTime == env.now):
                 with exchange.capacity.request() as request:
                     yield request
-                    if contract.expX(money) + assets > -amount or time == 0:
+                    if contract.expX(money) + assets > -amount or endTime == env.now:
                         (assets, money, completionPer, filled) = retrieveFunds(amount, contract, name, belP, assets, money)
                         notEnded = False
-            elif not buy and (contract.expM(assets) + money > amount*belP or time == 0):
+            elif not buy and (contract.expM(assets) + money > amount*belP or endTime == env.now):
                 with exchange.capacity.request() as request:
                     yield request
-                    if contract.expM(assets) + money > amount*belP or time == 0:
+                    if contract.expM(assets) + money > amount*belP or endTime == env.now:
                         (assets, money, completionPer, filled) = retrieveFunds(amount, contract, name, belP, assets, money)
                         notEnded = False
     else:
