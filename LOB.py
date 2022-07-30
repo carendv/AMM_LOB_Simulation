@@ -13,14 +13,14 @@ import simpy
 class LOB(Exchange):
     def __init__(self, env, name, s):
         super().__init__(env, name, s)
-        self.orders = [None] * (s.maxPriceRange - s.minPriceRange+1) # The buy side of the limit order book. Sell limit orders will end up here
-        self.sell = [None] * (s.maxPriceRange - s.minPriceRange+1) # The sell side of the limit order book. Buy limit orders will end up here.
-        initAsk = SellLimitOrder(s.initLiqSell, 1002, env.event(), self)        
-        initBid = BuyLimitOrder(s.initLiqBuy, 998, env.event(), self)
+        self.orders = [None] * (s.maxPriceRange - s.minPriceRange+1)
+        #self.sell = [None] * (s.maxPriceRange - s.minPriceRange+1) # The sell side of the limit order book. Buy limit orders will end up here.
+        initAsk = SellLimitOrder(s.minLiquidity, s.trueP+2, env.event(), self)        
+        initBid = BuyLimitOrder(s.minLiquidity, s.trueP-2, env.event(), self)
         self.bestAsk = initAsk
         self.bestBid = initBid
-        self.orders[getIndex(1002)] = initAsk
-        self.orders[getIndex(998)] = initBid
+        self.orders[getIndex(s.trueP+2)] = initAsk
+        self.orders[getIndex(s.trueP-2)] = initBid
     
     def __getliquidity__(self):
         totalAsked = self.getLiquidityUp()

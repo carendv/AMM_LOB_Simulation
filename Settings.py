@@ -28,8 +28,7 @@ class Settings(object):
         self.transSize = [1000 , 5000]
         
         # Variables w.r.t. liquidity of market
-        self.initLiqBuy = 307000
-        self.initLiqSell = 615000
+        self.minLiquidity = (self.transSize[0]+self.transSize[1]) /2 * 10
         self.liqP = 1
         self.liqMin = 4+(1-self.liqP)*6
         self.liqMax = 8+(1-self.liqP)*12
@@ -37,7 +36,6 @@ class Settings(object):
         self.AMMmax = 1100 # The maximal price in AMM
         self.minPriceRange = minPriceRange
         self.maxPriceRange = 1200
-        self.minLiquidity = (self.transSize[0]+self.transSize[1]) /2 * 10
         
         # Variables w.r.t. duration of simulation
         self.days = days

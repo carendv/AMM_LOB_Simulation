@@ -17,28 +17,26 @@ import numpy as np
 class AMM(Exchange):
     def __init__(self, env, name, s):
         super().__init__(env, name, s)
-        s.initLiqBuy = s.initLiqSell
         
         # Compute liquidity of pool, given initial buy liquidity and price
         pb = math.sqrt(s.AMMmax)
         a = (1-s.trueP/s.AMMmax)
-        b = -2*s.initLiqSell*s.trueP/pb
-        c = -s.trueP*s.initLiqSell**2
+        b = -2*s.minLiquidity*s.trueP/pb
+        c = -s.trueP*s.minLiquidity**2
         self.L = round((-b+math.sqrt(b**2-4*a*c))/(2*a))
         
         # Compute lower bound of initial range order given initial sell and pool liquidity
-        a = round( ((s.trueP*(s.initLiqSell+self.L/pb) - s.initLiqBuy*s.trueP)/self.L)**2 )
+        a = round( ((s.trueP*(s.minLiquidity+self.L/pb) - s.minLiquidity*s.trueP)/self.L)**2 )
         
         # Make sure initial liquidity slowly disappears from market.
         env.process(initRangeOrder(Contract(math.sqrt(a), pb, self.L, 0, 0, self, None), s).start())
         
         # Update price for rounding errors
-        self.sP = math.sqrt( (s.initLiqBuy*s.trueP + self.L*math.sqrt(a))/(s.initLiqSell + self.L/pb) )
+        self.sP = math.sqrt( (s.minLiquidity*s.trueP + self.L*math.sqrt(a))/(s.minLiquidity + self.L/pb) )
         
         
         # Variables needed for updates
         self.dL = [0] * (s.maxPriceRange - s.minPriceRange+1)
-        self.nR = [0] * (s.maxPriceRange - s.minPriceRange+1)
         
         # Variables needed to keep track of fees
         self.feeGrowthX = [0] * (s.maxPriceRange - s.minPriceRange+1)
@@ -48,8 +46,6 @@ class AMM(Exchange):
         # Initialize first liquidity
         self.dL[a-s.minPriceRange] = self.L
         self.dL[s.AMMmax-s.minPriceRange] = -self.L
-        self.nR[a-s.minPriceRange] += 1 # Number of references to price tick
-        self.nR[s.AMMmax-s.minPriceRange] += 1 # Number of references to price tick
         self.index = a-s.minPriceRange
         
         # Additional statistics calculation needed for fee calculations
@@ -117,7 +113,7 @@ class AMM(Exchange):
         while X < 0:
             if self.sP < pU and self.L == 0:
                 break
-            elif self.sP == pU and inU == len(self.nR)-1:
+            elif self.sP == pU and inU == len(self.dL)-1:
                 break
             elif self.sP == pU:
                 self.__setIndex__(inU)
@@ -160,7 +156,7 @@ class AMM(Exchange):
             elif self.sP == pL:
                 self.__setIndex__(inL)
             else:
-                pN = self.__getPricedX__(X*(1-self.F)) if inU < len(self.nR) else 0
+                pN = self.__getPricedX__(X*(1-self.F)) if inU < len(self.dL) else 0
                 
                 if pN >= pL:
                     M -= self.__getdMpN__(pN)
@@ -174,7 +170,7 @@ class AMM(Exchange):
                     dX = self.__getdXpN__(pL)/(1-self.F)
                     X -= dX
                     self.sP = pL
-                    if inU < len(self.nR) and not dX == 0 and record:
+                    if inU < len(self.dL) and not dX == 0 and record:
                         self.feeGrowthX[inU] += abs(dX*self.F/self.L)
                         self.marketSellTransactions.push(dX)
                     self.__setIndex__(inL)
@@ -245,15 +241,15 @@ class AMM(Exchange):
         
         # If the trade crosses it's upper price (only possible when selling),
         # split up the trade to go to the crossing
-        while M > 0 and (inU < len(self.nR) or self.L>0):
+        while M > 0 and (inU < len(self.dL) or self.L>0):
             if self.sP < pU and self.L == 0:
                 break
-            elif self.sP == pU and inU == len(self.nR)-1:
+            elif self.sP == pU and inU == len(self.dL)-1:
                 break
             elif self.sP == pU:
                 self.__setIndex__(inU)
             else:
-                pN = self.__getPricedM__(M*(1-self.F)) if inU < len(self.nR) else 0
+                pN = self.__getPricedM__(M*(1-self.F)) if inU < len(self.dL) else 0
                 
                 if pN <= pU:
                     dX = self.__getdXpN__(pN)
@@ -269,7 +265,7 @@ class AMM(Exchange):
                     dM = self.__getdMpN__(pU)/(1-self.F)
                     M -= dM
                     self.sP = pU
-                    if inU < len(self.nR) and not dM == 0 and record:
+                    if inU < len(self.dL) and not dM == 0 and record:
                         self.feeGrowthM[inU] += abs(dM*self.F/self.L)
                         self.marketBuyTransactions.push(dX)
                     self.__setIndex__(inU)
@@ -350,7 +346,7 @@ class AMM(Exchange):
         X = 0
         M = M*(1-self.F)
         (inU, pU) = self.__getTickWindowUp__(index)
-        while M > 0 and (inU < len(self.nR) or L>0):
+        while M > 0 and (inU < len(self.dL) or L>0):
             if L == 0 and index == inU:
                 L += self.dL[inU]
                 index = inU
@@ -412,7 +408,7 @@ class AMM(Exchange):
         while assets < 0:
             if sP < pU and L == 0:
                 return sP
-            elif sP == pU and inU == len(self.nR)-1:
+            elif sP == pU and inU == len(self.dL)-1:
                 return sP
             elif sP == pU:
                 L += self.dL[pU]
@@ -457,7 +453,7 @@ class AMM(Exchange):
             inU = self.index
         
         inU +=1
-        while inU < len(self.nR)-1 and self.nR[inU] == 0:
+        while inU < len(self.dL)-1 and self.dL[inU] == 0:
             inU += 1
         pu = math.sqrt(inU+self.s.minPriceRange)
         return (inU, pu)
@@ -474,10 +470,10 @@ class AMM(Exchange):
             return (0, math.sqrt(self.s.minPriceRange))
         
         inL -=1
-        while inL > 0 and self.nR[inL] == 0:
+        while inL > 0 and self.dL[inL] == 0:
             inL -= 1
         
-        if index == len(self.nR)-1:
+        if index == len(self.dL)-1:
             return (inL, math.inf)
         else:
             return (inL, math.sqrt(index+self.s.minPriceRange))
@@ -487,7 +483,6 @@ class AMM(Exchange):
     def __getdMpN__(self, pN): return self.L*(pN-self.sP)
     def __getdXpN__(self, pN): return (1/pN - 1/self.sP)*self.L
     
-    # In this simulation we assume that we can only add X or M, not both
     # Return X, M, L
     def add(self, X, M, a, b, kind=None, record=True): 
         # Compute some prices we need
@@ -591,12 +586,10 @@ class AMM(Exchange):
             return
         Il = self.index
         (Iu, _) = self.__getTickWindowUp__()
-        pa = round(pa*pa)
+        pa = round(pa*pa) # Rounding to get original exact price
         a = pa - self.s.minPriceRange
-        pb = round(pb*pb)
+        pb = round(pb*pb) # Rounding to get original exact price
         b = pb  - self.s.minPriceRange
-        self.nR[a] += 1
-        self.nR[b] += 1
         self.dL[a] = round(self.dL[a] + L)
         self.dL[b] = round(self.dL[b] - L)
         if Il < a and pa <= self.spot() and  pb >= self.spot():
@@ -623,14 +616,8 @@ class AMM(Exchange):
         (fXn, fMn) = self.__retrieveFeesPerUnitInRange__(c.pa, c.pb)
         a = c.a-self.s.minPriceRange
         b = c.b-self.s.minPriceRange
-        self.nR[a] -= 1
-        self.nR[b] -= 1
         self.dL[a] = round(self.dL[a] - c.L)
         self.dL[b] = round(self.dL[b] + c.L)
-        if self.nR[a] == 0 and not (self.dL[a] == 0):
-            self.dL[a] = 0
-        if self.nR[b] == 0 and not (self.dL[b] == 0) == 0:
-            self.dL[b] = 0
         
         if self.sP < c.pa:
             X = c.L*(c.pb-c.pa)/(c.pb*c.pa)
@@ -648,7 +635,7 @@ class AMM(Exchange):
     
     def __retrieveFeesPerUnitInRange__(self, pa, pb):
         a = math.floor(pa*pa)
-        b = min(round(pb*pb), len(self.nR)-1+self.s.minPriceRange)
+        b = min(round(pb*pb), len(self.dL)-1+self.s.minPriceRange)
         X = 0
         M = 0
         while b>a:
