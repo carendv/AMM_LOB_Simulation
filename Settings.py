@@ -28,6 +28,7 @@ class Settings(object):
         self.transSize = [1000 , 5000]
         
         # Variables w.r.t. liquidity of market
+        self.agressiveness = 0.5
         self.minLiquidity = (self.transSize[0]+self.transSize[1]) /2 * 10
         self.liqP = 1
         self.liqMin = 4+(1-self.liqP)*6
@@ -72,10 +73,10 @@ class Settings(object):
         return (time, amount)
     
     def getBuy(self, kind=False):
-        return self.getAmountTime(lambda : self.r.normal((47)*60,(72+0)*60), True, kind)
+        return self.getAmountTime(lambda : self.r.normal(46.92*60,72.31*60), True, kind)
     
     def getSell(self, kind=False):
-        return self.getAmountTime(lambda : self.r.normal((34)*60,54*60), False, kind)
+        return self.getAmountTime(lambda : self.r.normal(34.15*60,53.94*60), False, kind)
 
 
         

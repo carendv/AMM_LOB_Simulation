@@ -24,10 +24,7 @@ def trade(env, name, exchange, s, o, r):
     belP = round(s.trueP+(min(max(np.random.normal(0, 1), -3), 3))) if informed else spot
     kind = None
     
-    if belP != spot:
-        buy = 0.95/(1+np.e**(-0.5*(belP-spot))) > r.random()
-    else:
-        buy = 0.5 < r.random()
+    buy = 1/(1+np.e**(-s.agressiveness*(belP-spot))) > r.random()
     
     kind = None
     changed = False
@@ -226,28 +223,42 @@ def freeOrderLOB(buy, kind, belP, s, env, exchange):
         # If waiting gives a better price, and waiting is within time, do it
         if buy:
             liqAtPnew = exchange.getLiquidity(p-1) + abs(amount)
-            if sellQuan - buyQuan >= liqAtPnew:
+            if sellQuan - buyQuan >= liqAtPnew and p-1<bid: # Not at best bid
                 p -= 1
                 guessedTime = time*liqAtPnew/(sellQuan - buyQuan)
-            else:
+            elif sellQuan >= liqAtPnew and p>=bid: # at best bid
+                p-= 1
+                guessedTime = time*liqAtPnew/sellQuan
+            elif sellQuan - buyQuan >= liqAtP and p<bid:
+                guessedTime = time*liqAtP/(sellQuan - buyQuan)
+            elif sellQuan >= liqAtP and p >=bid:
                 guessedTime = time*liqAtP/sellQuan
-                if liqAtP > sellQuan or belP > ask:
-                    time = 0
-                    kindOrder = "M"
-                    changed = True
-                    guessedTime = 0
+            elif belP <= ask:
+                guessedTime = time
+            else:
+                time = 0
+                kindOrder = "M"
+                changed = True
+                guessedTime = 0
         else:
             liqAtPnew = exchange.getLiquidity(p+1) + abs(amount)
-            if buyQuan - sellQuan >= liqAtPnew:
+            if buyQuan - sellQuan >= liqAtPnew and p+1 > ask:
                 p += 1
                 guessedTime = time*liqAtPnew/(buyQuan - sellQuan)
-            else:
+            elif buyQuan >= liqAtPnew and p <= ask:
+                p += 1
+                guessedTime = time*liqAtPnew/buyQuan
+            elif buyQuan - sellQuan >= liqAtP and p > ask:
+                guessedTime = time*liqAtP/(buyQuan - sellQuan)
+            elif buyQuan >= liqAtP and p <= ask:
                 guessedTime = time*liqAtP/buyQuan
-                if liqAtP > buyQuan or belP < bid:
-                    time = 0
-                    kindOrder = "M"
-                    changed = True
-                    guessedTime = 0
+            elif belP >= bid:
+                guessedTime = time
+            else:
+                time = 0
+                kindOrder = "M"
+                changed = True
+                guessedTime = 0
     return (time, amount, p, changed, kindOrder, guessedTime)
         
 def bestRange(amm, buy, belP, spot):
@@ -331,7 +342,7 @@ def bestLimit(assets, belP, spot, bestAsk, bestBid):
             return (bestAsk, "L-Sell-Row")
 
 def probOrder(belP, marketPrice):
-    return 1/(1+np.e**(-(marketPrice-belP)/4))
+    return 1/(1+np.e**(-(marketPrice-belP)/1))
 
 def randomCheckOrderAMM(exchange, belP, s):
     lst_condition_result = [(exchange.getLiquidityDown() < s.minLiquidity, True), (exchange.getLiquidityUp() < s.minLiquidity, False)]
@@ -353,7 +364,7 @@ def updateBuySellQuantity(buyQuan, sellQuan, belP, spot):
     totQuan = buyQuan + sellQuan
     p = belP/spot
     weight = (1+abs(1-p))/2
-    sellQuan = sellQuan*(1-weight) + totQuan*p/(1 + belP/spot)*weight
-    buyQuan = totQuan - sellQuan
+    buyQuan = buyQuan*(1-weight) + totQuan*p/(1 + p)*weight
+    sellQuan = totQuan - buyQuan
     return (buyQuan, sellQuan)
     
