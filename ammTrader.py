@@ -16,7 +16,7 @@ random.seed(10)
 def trade(env, name, amm, s, o, r):
     print(name)
     now = env.now
-    
+    forced = False
     
     ###################
     # Liquidity check #
@@ -35,9 +35,10 @@ def trade(env, name, amm, s, o, r):
     ##################
     spot = amm.spot()
     informed = r.random() < s.infP
-    belP = round(s.trueP+(min(max(np.random.normal(0, 1), -3), 3))) if informed else spot
-    buy = 1/(1+np.e**(-s.agressiveness*(belP-spot))) > r.random()
-    (time, amount) = s.getBuy() if buy else s.getSell()
+    belP = round(s.trueP+(min(max(np.random.normal(0, 1), -3), 3))) if informed and not forced else spot
+    buy = 1/(1+np.e**(-s.agressiveness*(belP-spot))) > r.random() if not forced else buy
+    kind = "L" if forced else False
+    (time, amount) = s.getBuy(kind) if buy else s.getSell(kind)
     
     ######################
     # Decision variables #
@@ -63,7 +64,7 @@ def trade(env, name, amm, s, o, r):
         rU = max(amm.getLiquidityStart(rL), rL+2)
         
         # Compute expected fees
-        if rU <= math.floor(spot):
+        if rU <= math.floor(spot) and not forced:
             # Compute percentage of fees that occur in range
             sell = amm.getXPrice(rL)- amm.getXPrice(rU)
             perInRange = sell/(sellQuan - buyQuan)
@@ -102,7 +103,7 @@ def trade(env, name, amm, s, o, r):
         # Compute best range
         rU = min(max(math.floor(expP), math.ceil(spot)+2), math.ceil(belP)+1)
         rL = min(amm.getLiquidityStart(rU), rU-2)
-        if rL >= math.ceil(spot):
+        if rL >= math.ceil(spot) and not forced:
             buyInRange = amm.getMPrice(rU)-amm.getMPrice(rL)
             perInRange = buyInRange/(buyQuan-sellQuan)
             Lself = math.sqrt(rL*rU)/(math.sqrt(rU)-math.sqrt(rL))*X*(rU-rL)
@@ -130,6 +131,10 @@ def trade(env, name, amm, s, o, r):
         # since market orders are buying.
         # Thus range order not possible. Furthermore, now expensive to sell.
     
+    
+    ###################
+    # Order execution #
+    ###################  
     if liq:
         with amm.capacity.request() as request:
             yield request
