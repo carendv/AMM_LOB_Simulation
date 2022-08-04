@@ -55,22 +55,15 @@ class AMM(Exchange):
         self.prices = deque(maxlen=s.lookNTransactionsBack)
         self.prices.append(self.sP)
         self.tradePrices = []
-        
-    def __getVirtual__(self):
-        X = self.L/self.sP
-        M = self.L*self.sP
-        return (X, M)
-    
-    def __getReal__(self):
-        (Xvir, Mvir) = self.__getVirtual__()
-        (_, pb) = self.__getTickWindowUp__()
-        (_, pa) = self.__getTickWindowDown__()
-        X = Xvir-self.L/pb
-        M = Mvir-self.L*pa
-        return (X,M)
     
     def spot(self):
         return self.sP*self.sP
+    
+    def bestBidPrice(self):
+        return self.exp(1)
+
+    def bestAskPrice(self):
+        return self.exp(-1)
     
     def __setIndex__(self, index):
         self.index = index
@@ -80,12 +73,6 @@ class AMM(Exchange):
         L1 = round(np.sum(self.dL[:self.index+1]))
         L2 = -round(np.sum(self.dL[self.index+1:]))
         self.L = min(L1, L2)
-        
-    def bestBidPrice(self):
-        return self.exp(1)
-
-    def bestAskPrice(self):
-        return self.exp(-1)
     
     def __bigSpread__(self):
         X = 1000
@@ -116,7 +103,7 @@ class AMM(Exchange):
         while X < 0:
             if self.sP < pU and self.L == 0:
                 break
-            elif self.sP == pU and inU == len(self.nR)-1:
+            elif self.sP == pU and inU == len(self.nR):
                 break
             elif self.sP == pU:
                 self.__setIndex__(inU)
@@ -195,8 +182,9 @@ class AMM(Exchange):
     # A positive amount of X returned means that we get it from the AMM
     def tradeM(self, M, record=True):
         orM = M
-        self.prices.append(self.sP)
-        self.allPrices.append(self.sP)
+        if record:
+            self.prices.append(self.sP)
+            self.allPrices.append(self.sP)
         
         # Only full units of assets are accepted, though we do not check
         X = 0
@@ -247,7 +235,7 @@ class AMM(Exchange):
         while M > 0 and (inU < len(self.nR) or self.L>0):
             if self.sP < pU and self.L == 0:
                 break
-            elif self.sP == pU and inU == len(self.nR)-1:
+            elif self.sP == pU and inU == len(self.nR):
                 break
             elif self.sP == pU:
                 self.__setIndex__(inU)
@@ -411,7 +399,7 @@ class AMM(Exchange):
         while assets < 0:
             if sP < pU and L == 0:
                 return sP
-            elif sP == pU and inU == len(self.nR)-1:
+            elif sP == pU and inU == len(self.nR):
                 return sP
             elif sP == pU:
                 L += self.dL[pU]
@@ -451,12 +439,13 @@ class AMM(Exchange):
         return (inL, inU, pL, pU)
     
     # Returns pair: index upperbound, sqrt price upper bound
+    # When at upper bound, return upper bound+1
     def __getTickWindowUp__(self, inU=None):
         if not inU:
             inU = self.index
         
         inU +=1
-        while inU < len(self.nR)-1 and self.nR[inU] == 0:
+        while inU < len(self.nR) and self.nR[inU] == 0:
             inU += 1
         pu = math.sqrt(inU+self.s.minPriceRange)
         return (inU, pu)
@@ -476,7 +465,7 @@ class AMM(Exchange):
         while inL > 0 and self.nR[inL] == 0:
             inL -= 1
         
-        if index == len(self.nR)-1:
+        if index == len(self.nR):
             return (inL, math.inf)
         else:
             return (inL, math.sqrt(index+self.s.minPriceRange))
@@ -711,6 +700,196 @@ class AMM(Exchange):
             else:
                 index = int(np.ceil(p2))-self.s.minPriceRange
         return index+self.s.minPriceRange
+    
+    def getPriceX(self, X):
+        (sP, index, L) = (self.sP, self.index, self.L)
+        
+        # While there are assets left that are sold
+        while (X > 0):
+            (inL, pL) = self.__getTickWindowDown__(index)
+            if ((inL <= 0 or pL<sP) and L==0):
+                return sP**2
+            elif round(pL-sP,14) == 0:
+                L -= self.dL[index]
+                index = inL
+                continue
+            dP = min((1/pL - 1/sP), X/L)
+            X = round(X-dP*L,8)
+            sP = 1/(1/sP+dP)
+            L -= self.dL[index]
+            index = inL
+        # While there are assets left that are bought
+        while (X < 0):
+            (inU, pU) = self.__getTickWindowUp__(index)
+            if (inU >= len(self.nR) or (L == 0 and sP < pU)):
+                return sP**2
+            elif round(sP-pU, 14)==0:
+                L =+ self.dL[inU]
+                index = inU
+                continue
+            dP = max((1/pU - 1/sP), X/L)
+            X = round(X-dP*L,8)
+            sP = 1/(1/sP+dP)
+            index = inU
+            L += self.dL[inU]
+        return sP**2
+    
+    # Function that computes how much X has to be added to get to the price.
+    # We assume price <= spot
+    def getXPrice(self, price):
+        gP = math.sqrt(price)
+        (sP, index, L) = (self.sP, self.index, self.L)
+        X = 0
+        
+        while gP < sP:
+            (inL, pL) = self.__getTickWindowDown__(index)
+            if ((inL <= 0 or pL>sP) and L==0):
+                return sP**2
+            elif round(pL-sP, 14) == 0:
+                L -= self.dL[index]
+                index = inL
+                continue
+            dP = min((1/pL - 1/sP), (1/gP-1/sP))
+            X = round(X+dP*L,8)
+            sP = 1/(1/sP+dP)
+            L -= self.dL[index]
+            index = inL
+        
+        return X
+    
+    # Compute amount of X one gets for positive amount of M
+    def getX(self, M, price=None):
+        if not price:  
+            (sP, index, L) = (self.sP, self.index, self.L)
+        else:
+            sP = math.sqrt(price)
+            index = math.floor(price)-self.s.minPriceRange
+            L = round(np.sum(self.dL[:index+1]))
+        X = 0
+        while M>0:
+            (inU, pU) = self.__getTickWindowUp__(index)
+            if ((inU >= len(self.nR)) or (round(sP**2)==index and L==0)):
+                return X
+            elif (L==0 and round(sP-pU, 14)==0):
+                index = inU
+                L += self.dL[index]
+                continue
+            dP = min(pU - sP, M/L)
+            X -= (1/(sP+dP)-1/sP)*L
+            M -= dP*L
+            sP = sP+dP
+            index = inU
+            L += self.dL[inU]
+        return X
+    
+    # Get the price after trading M
+    def getPriceM(self, M):
+        (sP, index, L) = (self.sP, self.index, self.L)
+        
+        # While there is M left that is sold (X is bought)
+        while (M > 0):
+            (inU, pU) = self.__getTickWindowUp__(index)
+            if round(sP-pU, 14)==0:
+                L += self.dL[inU]
+                index = inU
+                continue
+            elif ((sP < pU and L==0) or inU == len(self.nR)):
+                return sP**2
+            
+            dP = min(M/L, pU-sP)
+            M -= dP*L
+            sP += dP
+            if (sP == pU):
+                index = inU
+                L += self.dL[inU]
+        # While there is M left that is bought (X is sold)
+        while (M < 0):
+            (inL, pL) = self.__getTickWindowDown__(index)
+            if round(sP-pL, 14)==0:
+                L -= self.dL[index]
+                index = inL
+                continue
+            elif ((inL <= 0 or pL==sP) and L==0):
+                return sP**2
+            dP = max(M/L, pL-sP)
+            M -= dP*L
+            sP += dP
+            if (sP == pL):
+                L -= self.dL[index]
+                index = inL
+                
+        return sP**2
+    
+    # Get the amount of M that has to be added to get to the price
+    # We assume price >= spot
+    def getMPrice(self, price):
+        gP = math.sqrt(price)
+        (sP, index, L) = (self.sP, self.index, self.L)
+        M = 0
+        
+        while gP > sP:
+            (inU, pU) = self.__getTickWindowUp__(index)
+            if round(sP-pU, 14)==0:
+                L += self.dL[inU]
+                index = inU
+                continue
+            elif ((sP < pU and L==0) or inU == len(self.nR)):
+                return math.inf
+            
+            dP = min(gP-sP, pU-sP)
+            M += dP*L
+            sP += dP
+            if (sP == pU):
+                index = inU
+                L += self.dL[inU]
+        return M
+    
+    def getM(self, X, price=None):
+        if not price:
+            (sP, index, L) = (self.sP, self.index, self.L)
+        else:
+            sP = math.sqrt(price)
+            index = math.floor(price)-self.s.minPriceRange
+            L = round(np.sum(self.dL[:index+1]))
+        M = 0
+        while X>0:
+            (inL, pL) = self.__getTickWindowDown__(index)
+            if ((inL <= 0 or pL<sP) and L==0):
+                return M
+            elif (L==0 and round(sP-pL, 14)==0):
+                L-= self.dL[index]
+                index = inL
+                continue
+            dP = min(1/pL - 1/sP, X/L)
+            X -= dP*L
+            M -= (1/(dP + 1/sP) - sP)*L 
+            sP = 1/(dP + 1/sP)
+            L -= self.dL[index]
+            index = inL
+        return M
+    
+    def getFirstLiqChange(self, oP):
+        if (oP < self.spot()):
+            index = math.ceil(oP)-self.s.minPriceRange + 1
+            while self.dL[index] == 0 and index<self.index:
+                index += 1
+        else:
+            index = math.floor(oP)-self.s.minPriceRange - 1
+            while self.dL[index] == 0 and index > self.index:
+                index -= 1
+        return index
+    
+    def getL(self, rL, rU):
+        l = rL - self.s.minPriceRange
+        u = rU - self.s.minPriceRange
+        L = np.sum(self.dL[:l+1])
+        tot = 0
+        while l < u:
+            tot += L
+            l += 1
+            L += self.dL[l]
+        
+        return tot
 
 class Contract(object):
     def __init__(self, pa, pb, L, fX, fM, amm, kind):
@@ -750,19 +929,19 @@ class Contract(object):
         return (X, M)    
 
     def retrieve(self, amount = 0, name = -1):
-        (asset, money) = self.amm.retrieve(self)
-        if self.kind == "Assets":
-            filled = money == 0
-            (asset2, money) = self.amm.tradeM(money+amount)
-            asset +=asset2
-        elif self.kind == "Money":
-            filled = asset == 0
-            (asset, money2) = self.amm.trade(asset+amount)
-            money += money2
+        (X, M) = self.amm.retrieve(self)
+        if self.kind == "X":
+            filled = M == 0
+            (X2, M) = self.amm.tradeM(M+amount)
+            X += X2
+        elif self.kind == "M":
+            filled = X == 0
+            (X, M2) = self.amm.trade(X+amount)
+            M += M2
         else:
             filled = math.nan
         self.L = 0
-        return (asset, money, filled)      
+        return (X, M, filled)      
     
 class BuyRangeOrder(Contract):
     def __init__(self, pa, pb, L, fX, fM, amm):

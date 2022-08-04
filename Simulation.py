@@ -19,7 +19,8 @@ from Settings import Settings
 from Output import Output
 from AMM import AMM
 from LOB import LOB
-from Trader import trade
+from Trader import trade as lobTrade
+from ammTrader import trade as ammTrade
 
 # Setup simulation, given the environment and settings
 def setup(env, s, o, kindExchange, i):
@@ -27,8 +28,10 @@ def setup(env, s, o, kindExchange, i):
     
     if kindExchange == "AMM":
         o.exchange = AMM(env, 'AMM_' + str(i), s)
+        trade = ammTrade
     elif kindExchange == "LOB":
         o.exchange = LOB(env, 'LOB_' + str(i), s)
+        trade = lobTrade
 
     shockIn = 1
     incr = -math.inf
@@ -134,7 +137,7 @@ def visualizeResults(results):
     ############################# 
     #(name, spot, belP, amount, time, guessedTime, env.now-now, assets, money, completionPer, filled)
     orders = pd.DataFrame(results.orders, columns=["Name", "Spot", "belP", "Amount", \
-                                        "Time", "GuessedTime", "ActualTime", "Assets", \
+                                        "Time", "ActualTime", "Assets", \
                                         "Money", "CompletionPer", "Filled"])
     
                 
@@ -197,5 +200,5 @@ def simulation(NAMM = 1, NLOB = 1, shocks=0, days=3, seed=100):
 
     return outputs
 
-results = simulation(NAMM=1, NLOB=1, shocks=1, days=3, seed=100)
+results = simulation(NAMM=1, NLOB=0, shocks=1, days=3, seed=100)
 
