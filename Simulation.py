@@ -140,31 +140,20 @@ def visualizeResults(results):
                                         "Time", "ActualTime", "Assets", \
                                         "Money", "CompletionPer", "Filled"])
     plt.figure()
-    plt.hist(orders.CompletionPer, bins=50, density=True)
+    plt.hist(orders.CompletionPer, bins=50)
     plt.title(results.exchange.name)
     plt.axvline(orders.CompletionPer.mean(), color='k', linestyle='dashed', linewidth=1)
+    locs, _ = plt.yticks() 
+    plt.yticks(locs,np.round(locs/len(orders.CompletionPer),3))
     plt.xlabel("Completion percentage")
     plt.ylabel("Frequency")
     plt.show()
-                
-    #########################
-    ### Strategie choices ###
-    #########################
-    c = Counter((elem[0], elem[1]) for elem in results.strats)
-    for (kind, informed) in c:
-        if informed:
-            print(f"Informed traders doing {kind}: {c[(kind, informed)]}")
-        else:
-            print(f"Non informed traders doing {kind}: {c[(kind, informed)]}")
-    c = Counter(elem[2] for elem in results.strats)
-    print(f"The number of limit orders that switched to market order: {c[True]}")
-    print()
-        
+    return points
     
     
 def plotWithInformed(data, points, name):
     names = ["Price", "Unit spread", "1000 spread", "Available to buy"]
-    bigSpread = [min(i, 5) for i in data.bigSpread]
+    bigSpread = [min(i, 10) for i in data.bigSpread]
     dataS = [data.prices, data.spread, bigSpread, data.availableBuy]
     num = len(names)
     rows = 2
@@ -185,6 +174,7 @@ def plotWithInformed(data, points, name):
     
 def simulation(NAMM = 1, NLOB = 1, shocks=0, days=3, seed=100): 
     outputs = []
+    points = []
     for i in range(NAMM):
         settings = Settings(NAMM=1, NLOB=0, shocks=shocks, days=days, seed=seed)
         output = Output(settings)
@@ -192,8 +182,9 @@ def simulation(NAMM = 1, NLOB = 1, shocks=0, days=3, seed=100):
         env = simpy.Environment()
         env.process(setup(env, settings, output, "AMM", i))
         env.run(until=settings.totTime)
-        visualizeResults(output)
+        point = visualizeResults(output)
         outputs.append(output)
+        points.append(point)
         
     for i in range(NLOB):
         settings = Settings(NAMM=0, NLOB=1, shocks=shocks, days=days, seed=seed)
@@ -202,10 +193,11 @@ def simulation(NAMM = 1, NLOB = 1, shocks=0, days=3, seed=100):
         env = simpy.Environment()
         env.process(setup(env, settings, output, "LOB", i))
         env.run(until=settings.totTime)
-        visualizeResults(output)
+        point = visualizeResults(output)
         outputs.append(output)
+        points.append(point)
 
-    return outputs
+    return outputs, points
 
-results = simulation(NAMM=1, NLOB=1, shocks=1, days=3, seed=100)
+#results, points = simulation(NAMM=1, NLOB=1, shocks=1, days=5, seed=100)
 
