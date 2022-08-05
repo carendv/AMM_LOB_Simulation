@@ -768,7 +768,7 @@ class AMM(Exchange):
         X = 0
         while M>0:
             (inU, pU) = self.__getTickWindowUp__(index)
-            if ((inU >= len(self.nR)) or (round(sP**2)==index and L==0)):
+            if ((inU >= len(self.nR)) or (sP<pU and L==0)):
                 return X
             elif (L==0 and round(sP-pU, 14)==0):
                 index = inU
@@ -776,7 +776,7 @@ class AMM(Exchange):
                 continue
             dP = min(pU - sP, M/L)
             X -= (1/(sP+dP)-1/sP)*L
-            M -= dP*L
+            M = M-dP*L if dP == pU - sP else 0
             sP = sP+dP
             index = inU
             L += self.dL[inU]
