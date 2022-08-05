@@ -7,14 +7,13 @@ Created on Wed Aug  3 13:15:34 2022
 """
 import random
 import math
-from AMM import AMM
-from Trader import updateBuySellQuantity
+from Trader import updateBuySellQuantity, retrieveFunds
 import numpy as np
 
 random.seed(10)
     
 def trade(env, name, amm, s, o, r):
-    print(name)
+    #print(name)
     now = env.now
     forced = False
     
@@ -28,7 +27,6 @@ def trade(env, name, amm, s, o, r):
         if condition:
             forced = True
             buy = param
-    # TODO: Use this to force liquidity order
     
     ##################
     # Initialization #
@@ -43,8 +41,8 @@ def trade(env, name, amm, s, o, r):
     ######################
     # Decision variables #
     ######################
-    wait = time > 0
-    liq = wait
+    wait = False
+    liq = time > 0
     M = round(-min(amount, 0)*belP)
     X = max(amount, 0)
     
@@ -60,7 +58,7 @@ def trade(env, name, amm, s, o, r):
         expXw = amm.getX(-amount*belP, expP) # Assets received after waiting 
         
         # Compute best range
-        rL = max(min(math.ceil(expP), math.floor(spot)-2), math.floor(belP)-1)
+        rL = max(min(math.ceil(expP), math.floor(spot)-2), math.floor(belP)-1) # Use here 95% interval
         rU = max(amm.getLiquidityStart(rL), rL+2)
         
         # Compute expected fees
@@ -78,11 +76,15 @@ def trade(env, name, amm, s, o, r):
             
             if expXl <= expXn and expXn < expXw:
                 liq = False
+                wait = True
             elif expXl <= expXn and expXn >= expXw:
                 liq = False
                 wait = False
             elif expXl < expXw:
                 liq = False
+                wait = True
+        elif rU > math.floor(spot) and not forced:
+            liq=True
             # When rU > math.floor(spot) we know rL <= spot <= rU
             # Therefore, we are trying to get fees and so it is fine to do liquidity order.
             # TODO: Check this
@@ -116,11 +118,13 @@ def trade(env, name, amm, s, o, r):
             
             if expMl <= expMn and expMn < expMw:
                 liq = False
+                wait = True
             elif expMl <= expMn and expMn >= expMw:
                 liq = False
                 wait = False
             elif expMl < expMw:
                 liq = False
+                wait = True
         # When rL < math.floor(spot) we know rL <= spot <= rU
         # Therefore, we are trying to get fees and so it is fine to do liquidity order.
         # TODO: Check this
@@ -140,31 +144,26 @@ def trade(env, name, amm, s, o, r):
             yield request
             kind = "X" if buy else "M"
             (X, M, contract) = amm.add(X, M, rL, rU, kind, True)
+        filled = False
+        while env.now < now + time and not filled:
+            yield env.timeout(min(100, now+time-env.now))
+            if buy and amm.spot() < rL:
+                filled = True
+            elif not buy and amm.spot() >rU:
+                filled = True
     if wait:
         yield env.timeout(time)
     with amm.capacity.request() as request:
         yield request
         if liq:
             (X, M, completionPer, filled) = retrieveFunds(amount, contract, name, belP, X, M)
-            o.orders.append((name, spot, belP, amount, time, env.now-now, X, M, completionPer, "L"))
+            o.orders.append((name, spot, amm.spot(), expP, belP, amount, time, env.now-now, X, M, completionPer, "L"))
         elif buy:
             (X, M) = amm.tradeM(M)
             completionPer = -X/amount
-            o.orders.append((name, spot, belP, amount, time, env.now-now, X, M, completionPer, "M"))
+            o.orders.append((name, spot, amm.spot(), expP, belP, amount, time, env.now-now, X, M, completionPer, "M"))
         else:
             (X, M) = amm.trade(X)
             completionPer = M/(amount*belP)
-            o.orders.append((name, spot, belP, amount, time, env.now-now, X, M, completionPer, "M"))
-    
-
-def retrieveFunds(amount, contract, name, belP, assets=0, money=0):
-    if amount < 0:
-        (assets2, money, filled) = contract.retrieve(money, name)
-        assets += assets2
-        completionPer = -assets/amount
-    else:
-        (assets, money2, filled) = contract.retrieve(assets, name)
-        money += money2
-        completionPer = money/(amount*belP)
-    return (assets, money, completionPer, filled)
+            o.orders.append((name, spot, amm.spot(), expP, belP, amount, time, env.now-now, X, M, completionPer, "M"))
     
