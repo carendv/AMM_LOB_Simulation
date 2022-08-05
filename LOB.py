@@ -7,7 +7,7 @@ Created on Mon May 30 14:29:48 2022
 """
 from Exchange import Exchange
 import math
-from Settings import minPriceRange, Settings
+from Settings import minPriceRange
 import simpy
 
 class LOB(Exchange):
@@ -79,8 +79,8 @@ class LOB(Exchange):
     
     def __bigSpread__(self):
         X = 1000
-        (XAsk, MAsk) = self.__expMon__(self.bestAsk, X)
-        (XBid, MBid) = self.__expMon__(self.bestBid, X)
+        (XAsk, MAsk) = self.__expMon__(self.bestAsk, X) if self.bestAsk else (1000, 0)
+        (XBid, MBid) = self.__expMon__(self.bestBid, X) if self.bestBid else (1000, 0)
         ask = MAsk/X if XAsk == 0 else self.s.maxPriceRange
         bid = MBid/X if XBid == 0 else self.s.minPriceRange
         return ask-bid
@@ -165,6 +165,26 @@ class LOB(Exchange):
         self.addStatistics(sellVol = orAmount - amount, buyVol = 0)
            
         return (amount, money)
+    
+    def expP(self, amount):
+        buy = amount < 0
+        if not self.bestBid:
+            return 0
+        if not self.bestAsk:
+            return 5000
+        spread = self.bestAsk.price - self.bestBid.price
+        order = self.bestBid if buy else self.bestAsk
+        price = self.bestBid.price
+        amount = abs(amount)
+        while amount > 0 and order:
+            price = order.price
+            amount = max(0, amount-order.assets)
+            order = order.next if amount == 0 else order
+        if not order and buy:
+            return 5000
+        elif not order and not buy:
+            return 0
+        return price + (1-2*buy)*spread/2
 
 def getIndex(price):
     return price - minPriceRange

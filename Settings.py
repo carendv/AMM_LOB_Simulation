@@ -34,7 +34,7 @@ class Settings(object):
         self.liqMin = 4+(1-self.liqP)*6
         self.liqMax = 8+(1-self.liqP)*12
         self.lookNTransactionsBack = 100
-        self.AMMmax = 1100 # The maximal price in AMM
+        self.AMMmax = self.trueP+2 # The maximal price in AMM
         self.minPriceRange = minPriceRange
         self.maxPriceRange = 1200
         
