@@ -148,6 +148,11 @@ def visualizeResults(results):
     plt.xlabel("Completion percentage")
     plt.ylabel("Frequency")
     plt.show()
+    
+    print(f"Completion percentage mean: {orders.CompletionPer.mean()}")
+    print(f"Completion percentage liquidity providers: {orders[orders.Filled == 'L'].CompletionPer.mean()}")
+    print(f"Completion percentage market providers: {orders[orders.Filled == 'M'].CompletionPer.mean()}")
+    
     return points
     
     
