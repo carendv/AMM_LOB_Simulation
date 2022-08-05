@@ -19,7 +19,7 @@ from Settings import Settings
 from Output import Output
 from AMM import AMM
 from LOB import LOB
-from Trader import trade as lobTrade
+from lobTrader import trade as lobTrade
 from ammTrader import trade as ammTrade
 
 # Setup simulation, given the environment and settings
@@ -136,10 +136,16 @@ def visualizeResults(results):
     ### Completion Percentage ###
     ############################# 
     #(name, spot, belP, amount, time, guessedTime, env.now-now, assets, money, completionPer, filled)
-    orders = pd.DataFrame(results.orders, columns=["Name", "Spot", "belP", "Amount", \
+    orders = pd.DataFrame(results.orders, columns=["Name", "Spot", "SpotA", "expP", "belP", "Amount", \
                                         "Time", "ActualTime", "Assets", \
                                         "Money", "CompletionPer", "Filled"])
-    
+    plt.figure()
+    plt.hist(orders.CompletionPer, bins=50, density=True)
+    plt.title(results.exchange.name)
+    plt.axvline(orders.CompletionPer.mean(), color='k', linestyle='dashed', linewidth=1)
+    plt.xlabel("Completion percentage")
+    plt.ylabel("Frequency")
+    plt.show()
                 
     #########################
     ### Strategie choices ###
@@ -157,8 +163,9 @@ def visualizeResults(results):
     
     
 def plotWithInformed(data, points, name):
-    names = ["Price", "Unit spread", "Cumulative sell volume", "cumulative buy volume"]
-    dataS = [data.prices, data.spread, data.sellVol, data.buyVol]
+    names = ["Price", "Unit spread", "1000 spread", "Available to buy"]
+    bigSpread = [min(i, 5) for i in data.bigSpread]
+    dataS = [data.prices, data.spread, bigSpread, data.availableBuy]
     num = len(names)
     rows = 2
     columns = num/rows
@@ -200,5 +207,5 @@ def simulation(NAMM = 1, NLOB = 1, shocks=0, days=3, seed=100):
 
     return outputs
 
-results = simulation(NAMM=1, NLOB=0, shocks=1, days=3, seed=100)
+results = simulation(NAMM=1, NLOB=1, shocks=1, days=3, seed=100)
 
