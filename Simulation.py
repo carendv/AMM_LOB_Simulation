@@ -13,7 +13,7 @@ import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 from statsmodels.tsa.stattools import adfuller
-from collections import Counter
+import statsmodels.api as sm
 
 from Settings import Settings
 from Output import Output
@@ -21,6 +21,9 @@ from AMM import AMM
 from LOB import LOB
 from lobTrader import trade as lobTrade
 from ammTrader import trade as ammTrade
+import warnings
+
+warnings.filterwarnings("ignore")
 
 # Setup simulation, given the environment and settings
 def setup(env, s, o, kindExchange, i):
@@ -110,6 +113,7 @@ def visualizeResults(results):
         print(f"Shock {i+1} took the price from {a} to {b}.")
         print(f"{time} seconds went by and there where {trades} trades.")
         print(f"The buy volume was {buyVol}, while the sell volume was {sellVol}.")
+        print()
     
     ####################
     ### Random walks ###
@@ -117,15 +121,23 @@ def visualizeResults(results):
     # There should be a random walk when the informed trades are on the lower threshold
     points.insert(0, 0)
     points.append(len(statistics.prices)-1)
-    pvalues = []
+    pvaluesAF = []
+    pvaluesK = []
     for i in range(int(np.ceil(len(points)/3))):
         statPart = statistics.prices[points[i*3]:points[i*3+1]]
-        rw = adfuller(statPart)
-        pvalues.append(round(rw[1], 4))
+        
+        # Do an adfuller test
+        af = adfuller(statPart)
+        pvaluesAF.append(round(af[1], 4))
+        
+        # Do an KPSS test
+        k = sm.tsa.stattools.kpss(statPart, regression='ct')
+        pvaluesK.append(round(k[1], 4))
     
     print()
-    print(f"Found p-values of stationary parts: {pvalues}")
-    if all(i > 0.05 for i in pvalues):
+    print(f"Found p-values of adfuller test stationary parts: {pvaluesAF}")
+    print(f"Found p-values of kpss test stationary parts: {pvaluesK}")
+    if all(i > 0.05 for i in pvaluesAF) and all(i < 0.05 for i in pvaluesK):
         print("The market has perfect information.")
     else:
         print("The market prices are influenced by the past.")
