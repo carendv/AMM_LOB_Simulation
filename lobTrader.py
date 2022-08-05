@@ -116,10 +116,10 @@ def trade(env, name, lob, s, o, r):
             o.orders.append((name, spot, lob.spot(), expP, belP, amount, time, env.now-now, X, M, completionPer, "L"))
         elif buy:
             (X, M) = lob.tradeM(-amount*belP)
-            completionPer = -X/amount
+            completionPer = (-amount*belP)/X/belP
             o.orders.append((name, spot, lob.spot(), expP, belP, amount, time, env.now-now, X, M, completionPer, "M"))
         else:
             (X, M) = lob.trade(amount)
-            completionPer = M/(amount*belP)
+            completionPer = M/amount/belP
             o.orders.append((name, spot, lob.spot(), expP, belP, amount, time, env.now-now, X, M, completionPer, "M"))
     

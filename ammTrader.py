@@ -143,7 +143,7 @@ def trade(env, name, amm, s, o, r):
         with amm.capacity.request() as request:
             yield request
             kind = "X" if buy else "M"
-            (X, M, contract) = amm.add(X, M, rL, rU, kind, True)
+            (X, M, contract) = amm.add(X, M, rL, rU, kind, False)
         filled = False
         while env.now < now + time and not filled:
             yield env.timeout(min(100, now+time-env.now))
@@ -160,10 +160,10 @@ def trade(env, name, amm, s, o, r):
             o.orders.append((name, spot, amm.spot(), expP, belP, amount, time, env.now-now, X, M, completionPer, "L"))
         elif buy:
             (X, M) = amm.tradeM(M)
-            completionPer = -X/amount
+            completionPer = (-amount*belP/X)/belP
             o.orders.append((name, spot, amm.spot(), expP, belP, amount, time, env.now-now, X, M, completionPer, "M"))
         else:
             (X, M) = amm.trade(X)
-            completionPer = M/(amount*belP)
+            completionPer = M/amount/belP
             o.orders.append((name, spot, amm.spot(), expP, belP, amount, time, env.now-now, X, M, completionPer, "M"))
     
