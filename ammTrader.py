@@ -58,10 +58,8 @@ def trade(env, name, amm, s, o, r):
         expXw = amm.getX(-amount*belP, expP) # Assets received after waiting 
         
         # Compute best range
-        rL = max(min(math.ceil(expP), math.floor(spot)-2), math.floor(belP)-1) # Use here 95% interval
-        rL = int(min(rL, math.floor(np.percentile(amm.prices, 5)**2)))
-        rU = max(amm.getLiquidityStart(rL), rL+2)
-        rU = int(max(rU, math.ceil(np.percentile(amm.prices, 95)**2)))
+        rL = int(math.floor(min(spot-2, belP-1, np.percentile(amm.prices, 5)**2)))
+        rU = int(math.ceil(max(amm.getLiquidityStart(rL), rL+2, np.percentile(amm.prices, 95)**2)))
         
         # Compute expected fees
         if rU <= math.floor(spot) and not forced:
@@ -70,11 +68,17 @@ def trade(env, name, amm, s, o, r):
             perInRange = sell/(sellQuan - buyQuan)
             Lself = M/(math.sqrt(rU)-math.sqrt(rL))*(rU-rL)
             LOther = amm.getL(rL, rU)
+                        
+            lbR = max(expP, rL)
             
             Xfee = amm.F/(1-amm.F)*sellQuan*perInRange*Lself/(Lself+LOther)
-            Mfee = amm.F/(1-amm.F)*buyQuan*perInRange*math.sqrt(rL*rU)*Lself/(Lself+LOther)
+            Mfee = amm.F/(1-amm.F)*buyQuan*perInRange*math.sqrt(lbR*rU)*Lself/(Lself+LOther)
             
-            expXl = Xfee + M/math.sqrt(rL*rU) + amm.getX(Mfee, expP)
+            MSold = -(math.sqrt(lbR) - math.sqrt(rU))*Lself
+            MLeft = M - MSold
+            
+            expXl = Xfee + MSold/math.sqrt(lbR*rU) + amm.getX(Mfee+MLeft, expP)
+
             
             if expXl <= expXn and expXn < expXw:
                 liq = False
@@ -105,20 +109,27 @@ def trade(env, name, amm, s, o, r):
         expMw = amm.getM(amount, expP)
         
         # Compute best range
-        rU = min(max(math.floor(expP), math.ceil(spot)+2), math.ceil(belP)+1)
-        rU = int(max(rU, math.ceil(np.percentile(amm.prices, 95)**2)))
-        rL = min(amm.getLiquidityStart(rU), rU-2)
-        rL = int(min(rL, math.floor(np.percentile(amm.prices, 5)**2)))
+        #rU = max(math.floor(expP), min(math.ceil(spot)+2, math.ceil(belP)+1))
+        #rU = int(max(rU, math.ceil(np.percentile(amm.prices, 95)**2)))
+        #rL = min(amm.getLiquidityStart(rU), rU-2)
+        #rL = int(min(rL, math.floor(np.percentile(amm.prices, 5)**2)))
+        rU = int(math.ceil(max(spot+2,belP+1, np.percentile(amm.prices, 95)**2)))
+        rL = int(math.floor(min(amm.getLiquidityStart(rU), rU-2, np.percentile(amm.prices, 5)**2)))
         if rL >= math.ceil(spot) and not forced:
             buyInRange = amm.getMPrice(rU)-amm.getMPrice(rL)
             perInRange = buyInRange/(buyQuan-sellQuan)
             Lself = math.sqrt(rL*rU)/(math.sqrt(rU)-math.sqrt(rL))*X*(rU-rL)
             LOther = amm.getL(rL, rU)
             
-            Xfee = sellQuan*perInRange*Lself/(Lself+LOther)
-            Mfee = buyQuan*perInRange*math.sqrt(rL*expP)*Lself/(Lself+LOther)
+            ubR = min(rU, expP)
             
-            expMl = Mfee + X*math.sqrt(rL*rU) + amm.getM(Xfee, expP)
+            Xfee = sellQuan*perInRange*Lself/(Lself+LOther)
+            Mfee = buyQuan*perInRange*math.sqrt(rL*ubR)*Lself/(Lself+LOther)
+            
+            XSold = -(1/math.sqrt(ubR)-1/math.sqrt(spot))*Lself
+            XLeft = X - XSold
+            
+            expMl = Mfee + X*math.sqrt(rL*ubR) + amm.getM(Xfee+XLeft, expP)
             
             if expMl <= expMn and expMn < expMw:
                 liq = False
