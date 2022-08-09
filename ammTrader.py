@@ -59,7 +59,9 @@ def trade(env, name, amm, s, o, r):
         
         # Compute best range
         rL = max(min(math.ceil(expP), math.floor(spot)-2), math.floor(belP)-1) # Use here 95% interval
+        rL = int(min(rL, math.floor(np.percentile(amm.prices, 5)**2)))
         rU = max(amm.getLiquidityStart(rL), rL+2)
+        rU = int(max(rU, math.ceil(np.percentile(amm.prices, 95)**2)))
         
         # Compute expected fees
         if rU <= math.floor(spot) and not forced:
@@ -104,7 +106,9 @@ def trade(env, name, amm, s, o, r):
         
         # Compute best range
         rU = min(max(math.floor(expP), math.ceil(spot)+2), math.ceil(belP)+1)
+        rU = int(max(rU, math.ceil(np.percentile(amm.prices, 95)**2)))
         rL = min(amm.getLiquidityStart(rU), rU-2)
+        rL = int(min(rL, math.floor(np.percentile(amm.prices, 5)**2)))
         if rL >= math.ceil(spot) and not forced:
             buyInRange = amm.getMPrice(rU)-amm.getMPrice(rL)
             perInRange = buyInRange/(buyQuan-sellQuan)

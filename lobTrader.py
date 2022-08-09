@@ -58,14 +58,17 @@ def trade(env, name, lob, s, o, r):
     
     (buyQuan, sellQuan) = lob.getBuySellQuantity(time)
     (buyQuan, sellQuan) = updateBuySellQuantity(buyQuan, sellQuan, belP, spot)
-    expP = lob.expP(sellQuan-buyQuan)
+    expP = lob.expP(sellQuan-buyQuan) # For statistics only
     
+    ##################
+    # Order decision #
+    ##################
     if time > 0:
         if buy and belP < ask:
-            shift = 2 if informed else 3
+            shift = 3 if informed else 6
             undercut = 1/(1+np.e**(-1*(belP-bid-shift))) > r.random()
-            if undercut:
-                p = min(min(belP, bid+1), ask-1)
+            if undercut and belP >= bid+1 and bid+1 <= ask-1:
+                p = bid+1
             else:
                 p = min(min(belP, bid), ask-1)
                 p2 = p-1
@@ -76,8 +79,8 @@ def trade(env, name, lob, s, o, r):
         elif not buy and belP > bid:
             shift = 3 if informed else 6
             undercut = 1/(1+np.e**(-1*(ask-belP-shift))) > r.random()
-            if undercut:
-                p = max(max(belP, ask-1), bid+1)
+            if undercut and belP <= ask-1 and ask-1 >= bid+1:
+                p = ask-1
             else:
                 p = max(max(belP, ask), bid+1)
                 p2 = p+1
@@ -86,7 +89,7 @@ def trade(env, name, lob, s, o, r):
                 if excess >= liqAt or p2 <= ask:
                     p = p2
         # A not informed trader only does liquidity order when some hope on execution
-        if not informed:
+        if not forced:
             if buy and p == bid:
                 liqAt = lob.getLiquidity(p) - amount
                 if sellQuan < liqAt:
@@ -108,7 +111,7 @@ def trade(env, name, lob, s, o, r):
             kind = "X" if buy else "M"
             trading = amount*belP/p if buy else amount
             (X, M, contract) = lob.add(trading, p, name)
-        yield env.timeout(time)
+        yield env.timeout(time) | contract.succes
     with lob.capacity.request() as request:
         yield request
         if liq:
