@@ -37,8 +37,8 @@ def setup(env, s, o, kindExchange, i):
         trade = lobTrade
 
     shockIn = 1
-    incr = -math.inf
-    decr = -math.inf
+    incr = math.inf
+    decr = math.inf
     start = -1
     trades = 0
         
@@ -52,16 +52,16 @@ def setup(env, s, o, kindExchange, i):
             start = env.now
         elif incr > env.now:
             s.infP = (s.maxInfP-s.minInfP)/(incr-start)*(env.now-start)+s.minInfP
-        elif incr + 10 > env.now:
+        elif incr <= env.now:
             s.infP = s.maxInfP
             decr = env.now + s.shockDecrTime
             start = env.now
-            incr = 0
+            incr = math.inf
         elif decr > env.now:  
             s.infP = s.maxInfP - (s.maxInfP-s.minInfP)/(decr-start)*(env.now-start)
-        elif decr + 10 > env.now:
+        elif decr <= env.now:
             s.infP = s.minInfP
-            decr = 0
+            decr = math.inf
 
         env.process(trade(env, trades, o.exchange, s, o, random))
         trades += 1
