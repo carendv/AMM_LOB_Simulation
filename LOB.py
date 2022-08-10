@@ -15,12 +15,12 @@ class LOB(Exchange):
         super().__init__(env, name, s)
         self.orders = [None] * (s.maxPriceRange - s.minPriceRange+1)
         #self.sell = [None] * (s.maxPriceRange - s.minPriceRange+1) # The sell side of the limit order book. Buy limit orders will end up here.
-        initAsk = SellLimitOrder(s.minLiquidity, s.trueP+2, env.event(), self)        
-        initBid = BuyLimitOrder(s.minLiquidity, s.trueP-2, env.event(), self)
+        initAsk = SellLimitOrder(s.minLiquidity, s.trueP+s.initialBidAsk, env.event(), self)        
+        initBid = BuyLimitOrder(s.minLiquidity, s.trueP-s.initialBidAsk, env.event(), self)
         self.bestAsk = initAsk
         self.bestBid = initBid
-        self.orders[getIndex(s.trueP+2)] = initAsk
-        self.orders[getIndex(s.trueP-2)] = initBid
+        self.orders[getIndex(s.trueP+s.initialBidAsk)] = initAsk
+        self.orders[getIndex(s.trueP-s.initialBidAsk)] = initBid
     
     def __getliquidity__(self):
         totalAsked = self.getLiquidityUp()

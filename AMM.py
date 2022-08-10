@@ -19,8 +19,8 @@ class AMM(Exchange):
         super().__init__(env, name, s)
         
         # Compute liquidity of pool, given initial buy liquidity and price
-        pb = math.sqrt(s.AMMmax)
-        a = (1-s.trueP/s.AMMmax)
+        pb = math.sqrt(s.trueP+s.initialBidAsk)
+        a = (1-s.trueP/s.trueP+s.initialBidAsk)
         b = -2*s.minLiquidity*s.trueP/pb
         c = -s.trueP*s.minLiquidity**2
         self.L = round((-b+math.sqrt(b**2-4*a*c))/(2*a))
@@ -46,9 +46,9 @@ class AMM(Exchange):
         
         # Initialize first liquidity
         self.dL[a-s.minPriceRange] = self.L
-        self.dL[s.AMMmax-s.minPriceRange] = -self.L
+        self.dL[s.trueP+s.initialBidAsk-s.minPriceRange] = -self.L
         self.nR[a-s.minPriceRange] += 1 # Number of references to price tick
-        self.nR[s.AMMmax-s.minPriceRange] += 1 # Number of references to price tick
+        self.nR[s.trueP+s.initialBidAsk-s.minPriceRange] += 1 # Number of references to price tick
         self.index = a-s.minPriceRange
         
         # Additional statistics calculation needed for fee calculations
