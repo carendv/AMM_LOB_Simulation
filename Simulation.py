@@ -37,8 +37,8 @@ def setup(env, s, o, kindExchange, i):
         trade = lobTrade
 
     shockIn = 1
-    incr = math.inf
-    decr = math.inf
+    incr = None
+    decr = None
     start = -1
     trades = 0
         
@@ -50,18 +50,18 @@ def setup(env, s, o, kindExchange, i):
             shockIn += 1
             incr = env.now + s.shockIncrTime
             start = env.now
-        elif incr > env.now:
+        elif incr and incr > env.now:
             s.infP = (s.maxInfP-s.minInfP)/(incr-start)*(env.now-start)+s.minInfP
-        elif incr <= env.now:
+        elif incr and incr <= env.now:
             s.infP = s.maxInfP
             decr = env.now + s.shockDecrTime
             start = env.now
-            incr = math.inf
-        elif decr > env.now:  
+            incr = None
+        elif decr and decr > env.now:  
             s.infP = s.maxInfP - (s.maxInfP-s.minInfP)/(decr-start)*(env.now-start)
-        elif decr <= env.now:
+        elif decr and decr <= env.now:
             s.infP = s.minInfP
-            decr = math.inf
+            decr = None
 
         env.process(trade(env, trades, o.exchange, s, o, random))
         trades += 1
@@ -97,7 +97,7 @@ def visualizeResults(results):
     ####################
     ### Create plots ###
     ####################
-    plotWithInformed(statistics, points, results.exchange.name)
+    #plotWithInformed(statistics, points, results.exchange.name)
     
     #######################
     ### Price discovery ###
@@ -151,15 +151,15 @@ def visualizeResults(results):
     orders = pd.DataFrame(results.orders, columns=["Name", "Spot", "SpotA", "expP", "belP", "Amount", \
                                         "Time", "ActualTime", "Assets", \
                                         "Money", "CompletionPer", "Filled"])
-    plt.figure()
-    plt.hist(orders.CompletionPer, bins=50)
-    plt.title(results.exchange.name)
-    plt.axvline(orders.CompletionPer.mean(), color='k', linestyle='dashed', linewidth=1)
-    locs, _ = plt.yticks() 
-    plt.yticks(locs,np.round(locs/len(orders.CompletionPer),3))
-    plt.xlabel("Completion percentage")
-    plt.ylabel("Frequency")
-    plt.show()
+    #plt.figure()
+    #plt.hist(orders.CompletionPer, bins=50)
+    #plt.title(results.exchange.name)
+    #plt.axvline(orders.CompletionPer.mean(), color='k', linestyle='dashed', linewidth=1)
+    #locs, _ = plt.yticks() 
+    #plt.yticks(locs,np.round(locs/len(orders.CompletionPer),3))
+    #plt.xlabel("Completion percentage")
+    #plt.ylabel("Frequency")
+    #plt.show()
     
     print(f"Completion percentage mean: {orders.CompletionPer.mean()}")
     print(f"Completion percentage liquidity providers: {orders[orders.Filled == 'L'].CompletionPer.mean()}")
