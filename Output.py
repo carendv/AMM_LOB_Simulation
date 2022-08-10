@@ -11,7 +11,6 @@ class Output(object):
         self.exchange = None
         self.settings = settings
         self.orders = []
-        self.strats = []
 
 class ExchangeStatistics(object):
     def __init__(self):
