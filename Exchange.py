@@ -24,6 +24,7 @@ class Exchange(object):
         return (self.marketBuyTransactions.getLiqSec()*time, self.marketSellTransactions.getLiqSec()*time)
     
     def addStatistics(self, sellVol = 0, buyVol = 0):
+        (UnitBuy, UnitSell) = self.__quoteSize__()
         self.statistics.add(price = self.spot(), \
                             time = self.env.now, \
                             sellVol = sellVol, \
@@ -32,7 +33,9 @@ class Exchange(object):
                             bigSpread = self.__bigSpread__(),\
                             informedProb = self.s.infP,\
                             avSell = self.getLiquidityDown(),\
-                            avBuy = self.getLiquidityUp())
+                            avBuy = self.getLiquidityUp(), \
+                            unitBuy = UnitBuy, \
+                            unitSell = UnitSell)
 
 class Queue():
     def __init__(self, env, s):

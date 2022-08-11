@@ -85,6 +85,26 @@ class LOB(Exchange):
         bid = MBid/X if XBid == 0 else self.s.minPriceRange
         return ask-bid
     
+    def __quoteSize__(self):
+        sell = 0
+        buy = 0
+        sellOrder = self.bestBid # To which you can sell
+        buyOrder = self.bestAsk # To which you can buy
+        
+        if sellOrder:
+            sellPrice = sellOrder.price
+        if buyOrder:
+            buyPrice = buyOrder.price
+            
+        while sellOrder and sellOrder.price == sellPrice:
+            sell += sellOrder.assets
+            sellOrder = sellOrder.next
+        while buyOrder and buyOrder.price == buyPrice:
+            buy += buyOrder.assets
+            buyOrder = buyOrder.next
+            
+        return (buy, sell)
+    
     def __expMon__(self, order, X):
         M = 0
         while order.next and X>0:

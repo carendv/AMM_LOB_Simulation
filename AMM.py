@@ -82,6 +82,11 @@ class AMM(Exchange):
         ask = min(MAsk/X, self.s.maxPriceRange)
         return ask-bid
     
+    def __quoteSize__(self):
+        pL = self.spot()-1
+        pU = self.spot()+1
+        return (self.getXPrice(pU), self.getXPrice(pL))
+    
     
     # Trade X for M, as seen from the AMM. This means:
     # A negative amount of X means that we buy it from the AMM
@@ -735,7 +740,7 @@ class AMM(Exchange):
         return sP**2
     
     # Function that computes how much X has to be added to get to the price.
-    # We assume price <= spot
+    # We assume price <= spot when called by the trader
     def getXPrice(self, price):
         gP = math.sqrt(price)
         (sP, index, L) = (self.sP, self.index, self.L)
@@ -749,12 +754,28 @@ class AMM(Exchange):
                 L -= self.dL[index]
                 index = inL
                 continue
-            dP = min((1/pL - 1/sP), (1/gP-1/sP))
+            border = max(pL, gP)
+            dP = 1/border - 1/sP
             X = round(X+dP*L,8)
-            sP = 1/(1/sP+dP)
-            L -= self.dL[index]
-            index = inL
+            sP = sP + dP if border==pL else gP
+            L == L - self.dL[index] if border == pL else L
+            index = inL if border == pL else index
         
+        
+        while gP > sP:
+            (inU, pU) = self.__getTickWindowUp__(index)
+            if ((inU >= len(self.nR)) or (sP<pU and L==0)):
+                return X
+            elif (L==0 and round(sP-pU, 14)==0):
+                index = inU
+                L += self.dL[index]
+                continue
+            border = min(pU, gP)
+            dP = border - sP
+            X -= (1/(sP+dP)-1/sP)*L
+            sP = sP+dP if border == pU else gP
+            index = inU if border == pU else index
+            L = L + self.dL[inU] if border == pU else L
         return X
     
     # Compute amount of X one gets for positive amount of M
