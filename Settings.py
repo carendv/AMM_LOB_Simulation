@@ -8,10 +8,10 @@ Created on Mon Mar 21 16:10:26 2022
 import math
 import numpy as np
 
-minPriceRange = 900
+minPriceRange = 950
 
 class Settings(object):
-    def __init__(self, NAMM=1, NLOB=0, shocks=1, days=5, seed=100):
+    def __init__(self, NAMM=1, NLOB=0, shocks=1, days=3, seed=100):
         # Variables that can be set
         self.NAMM = NAMM
         self.NLOB = NLOB
@@ -24,26 +24,27 @@ class Settings(object):
         # Variables with respect to transaction
         self.orP = 1000
         self.trueP = self.orP
-        self.fee = 0.001
+        self.fee = 0.0005
         self.transSize = [1000 , 5000]
         
         # Variables w.r.t. liquidity of market
+        self.initialBidAsk = 2
         self.agressiveness = 0.5
         self.minLiquidity = (self.transSize[0]+self.transSize[1]) /2 * 10
         self.liqP = 1
-        self.liqMin = 4+(1-self.liqP)*6
-        self.liqMax = 8+(1-self.liqP)*12
+        self.liqMin = int(4+(1-self.liqP)*6)
+        self.liqMax = int(8+(1-self.liqP)*12)
         self.lookNTransactionsBack = 100
         self.AMMmax = self.trueP+2 # The maximal price in AMM
         self.minPriceRange = minPriceRange
-        self.maxPriceRange = 1200
+        self.maxPriceRange = 1100
         
         # Variables w.r.t. duration of simulation
         self.days = days
         self.totTime = self.days*60*60*8
         
         # Variables w.r.t. informed traders
-        self.infP = 0.2
+        self.infP = 0.1
         self.minInfP = self.infP
         self.maxInfP = 0.75
         
