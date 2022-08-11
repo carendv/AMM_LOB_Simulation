@@ -151,17 +151,18 @@ def visualizeResults(results):
     orders = pd.DataFrame(results.orders, columns=["Name", "Spot", "SpotA", "expP", "belP", "Amount", \
                                         "Time", "ActualTime", "Assets", \
                                         "Money", "CompletionPer", "Filled"])
-    #plt.figure()
-    #plt.hist(orders.CompletionPer, bins=50)
-    #plt.title(results.exchange.name)
-    #plt.axvline(orders.CompletionPer.mean(), color='k', linestyle='dashed', linewidth=1)
-    #locs, _ = plt.yticks() 
-    #plt.yticks(locs,np.round(locs/len(orders.CompletionPer),3))
-    #plt.xlabel("Completion percentage")
-    #plt.ylabel("Frequency")
-    #plt.show()
+    plt.figure()
+    plt.hist(orders.CompletionPer, bins=50)
+    plt.title(results.exchange.name)
+    plt.axvline(orders.CompletionPer.mean(), color='k', linestyle='dashed', linewidth=1)
+    locs, _ = plt.yticks() 
+    plt.yticks(locs,np.round(locs/len(orders.CompletionPer),3))
+    plt.xlabel("Completion percentage")
+    plt.ylabel("Frequency")
+    plt.show()
     
     print(f"Completion percentage mean: {orders.CompletionPer.mean()}")
+    print(f"Completion percentage std: {orders.CompletionPer.std()}")
     print(f"Completion percentage liquidity providers: {orders[orders.Filled == 'L'].CompletionPer.mean()}")
     print(f"Completion percentage market providers: {orders[orders.Filled == 'M'].CompletionPer.mean()}")
     
