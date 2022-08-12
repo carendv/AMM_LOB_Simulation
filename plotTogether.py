@@ -37,8 +37,8 @@ for i in range(num):
     plt.legend()
     plt.grid(True)    
     for i in range(round(len(points[0])/3)-1):
-        plt.axvspan(data1.times[points[0][i*3+1]], data1.times[points[0][i*3+2]], alpha = 0.5, color='g')
-        plt.axvspan(data1.times[points[0][i*3+2]], data1.times[points[0][i*3+3]], alpha = 0.5, color='r')
+        plt.axvspan(data1.times[points[0][i*3+1]], data1.times[points[0][i*3+2]], alpha = 0.2, color='g')
+        plt.axvspan(data1.times[points[0][i*3+2]], data1.times[points[0][i*3+3]], alpha = 0.2, color='r')
 #plt.tight_layout() 
 
 fig = plt.figure()
